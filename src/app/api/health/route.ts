@@ -18,7 +18,7 @@ export async function GET() {
   } else {
     try {
       const client = createClient(supabaseUrl, supabaseKey);
-      const { error } = await client.from('diagnoses').select('id').limit(1);
+      const { error } = await client.from('dna_diagnoses').select('id').limit(1);
       checks.supabase = error
         ? { ok: false, message: error.message }
         : { ok: true, message: 'connected' };

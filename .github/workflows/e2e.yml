@@ -44,6 +44,9 @@ jobs:
         run: npx playwright test --project=chromium-desktop
         env:
           E2E_BASE_URL: ${{ env.E2E_BASE_URL }}
+          # スモークフィクスチャ（/me・/clone テスト用）— GitHub Secrets に登録必須
+          E2E_FIXTURE_ID: ${{ secrets.E2E_FIXTURE_ID }}
+          E2E_FIXTURE_PASSWORD: ${{ secrets.E2E_FIXTURE_PASSWORD }}
           CI: true
 
       - name: テストレポートをアーティファクトに保存
