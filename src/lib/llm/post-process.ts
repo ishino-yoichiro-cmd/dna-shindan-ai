@@ -167,6 +167,22 @@ export function runQualityGate(rawText: string, chapterId: string): QcResult {
     hasFatalIssue = true;
   }
 
+  // ── Step 6: 改行密度チェック（壁テキスト検出）──
+  // 500文字以上のテキストで空行（\n\n）が0件 = 段落区切りが完全消去されている
+  // post-process.ts 内の /\s{2,}/g バグ再発検知のための構造的ガード
+  if (text.length > 500 && !text.includes('\n')) {
+    issues.push(`段落区切りが完全消去（${text.length}文字で改行なし）: post-process.ts の /\\s{2,}/g バグ再発の可能性`);
+    hasFatalIssue = true;
+  } else if (text.length > 1000) {
+    const blankLines = (text.match(/\n\n/g) ?? []).length;
+    const sentences = (text.match(/。/g) ?? []).length;
+    // 句点20個以上あるのに空行が2個未満 = 段落化されていない
+    if (sentences >= 20 && blankLines < 2) {
+      issues.push(`段落区切り不足（${text.length}文字・句点${sentences}個に対し空行${blankLines}個）: PDFが壁テキストになる`);
+      // fatal にはしないが issue として記録（MarkdownChapter の step0.5 が補完するため）
+    }
+  }
+
   return {
     passed: !hasFatalIssue,
     sanitizedText: text,
