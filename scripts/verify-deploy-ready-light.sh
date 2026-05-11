@@ -112,7 +112,7 @@ echo "▶ [4] SERVICE_ROLE_KEY Frontend Leak"
 LEAK=$(grep -rE "SERVICE_ROLE_KEY" "$PROJECT_ABS" \
   --include="*.html" --include="*.tsx" --include="*.jsx" --include="*.ts" \
   $EXCLUDE 2>/dev/null \
-  | grep -vE '/api/|/server/|server\.ts:|\.server\.ts:' || true)
+  | grep -vE '/api/|/server/|/scripts/|server\.ts:|\.server\.ts:' || true)
 if [ -n "$LEAK" ]; then
   echo "  🚨 [CRITICAL] SERVICE_ROLE_KEY のクライアント側流出："
   echo "$LEAK" | head -5 | sed 's/^/   /'

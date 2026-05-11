@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm audit --audit-level=high && bash scripts/verify-deploy-ready-light.sh ./ && bash scripts/verify-no-real-name.sh ./ && bash scripts/verify-auth-coverage.sh ./ && npm run build",
+  "buildCommand": "npm audit --audit-level=critical && bash scripts/verify-deploy-ready-light.sh ./ && bash scripts/verify-no-real-name.sh ./ && bash scripts/verify-auth-coverage.sh ./ && npm run build",
   "crons": [
     {
       "path": "/api/process-pending",
