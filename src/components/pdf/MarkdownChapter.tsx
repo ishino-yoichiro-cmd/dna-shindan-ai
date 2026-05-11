@@ -73,6 +73,25 @@ function preprocessMarkdown(md: string): string {
   md2 = md2.replace(/^(#{2,4} )(\S{4,})([ 　])(.{15,})$/gm, (_, marker, heading, _sp, body) => {
     return `${marker}${heading.trim()}\n\n${body.trim()}`;
   });
+  // 日本語見出し＋本文が空白なしで連続している場合を強制分割（上の regex が取りこぼすケース）
+  // 例: "## あなたの強み生まれながらにして..." → "## あなたの強み\n\n生まれながらにして..."
+  md2 = md2.replace(/^(#{2,4} )(.{20,})$/gm, (whole, marker, content) => {
+    // 句読点（。！？）での分割を優先（見出し内の自然な区切り位置）
+    for (let i = 5; i <= Math.min(18, content.length - 1); i++) {
+      if ('。！？'.includes(content[i])) {
+        const headingPart = content.slice(0, i + 1).trim();
+        const bodyPart = content.slice(i + 1).trim();
+        if (bodyPart.length >= 10) return `${marker}${headingPart}\n\n${bodyPart}`;
+      }
+    }
+    // 句読点がなければ14文字目で強制分割（見出しタイトルと本文の境界として）
+    if (content.length > 24) {
+      const headingPart = content.slice(0, 14).trim();
+      const bodyPart = content.slice(14).trim();
+      if (bodyPart.length >= 10) return `${marker}${headingPart}\n\n${bodyPart}`;
+    }
+    return whole;
+  });
   // 行中の ・ → 直前に改行を挿入（行頭の ・ はそのまま）
   md2 = md2.replace(/([^\n・])\s+(・)/g, '$1\n$2');
   const lines = md2.split('\n');
@@ -397,19 +416,18 @@ function H2({ text }: { text: string }) {
       style={{
         flexDirection: 'row',
         alignItems: 'stretch',
-        marginTop: 28,
-        marginBottom: 12,
+        marginTop: 36,
+        marginBottom: 14,
         backgroundColor: colors.calloutCoreBg,
         borderRadius: 4,
-        overflow: 'hidden',
       }}
     >
-      <View style={{ width: 5, backgroundColor: colors.accent }} />
+      <View style={{ width: 5, backgroundColor: colors.accent, borderRadius: 4 }} />
       <View
         style={{
           flex: 1,
-          paddingTop: 8,
-          paddingBottom: 8,
+          paddingTop: 9,
+          paddingBottom: 9,
           paddingLeft: 12,
           paddingRight: 12,
           borderBottomWidth: 0.8,
@@ -418,11 +436,11 @@ function H2({ text }: { text: string }) {
       >
         <Text
           style={{
-            fontSize: 14.5,
+            fontSize: 16,
             fontWeight: 700,
             color: colors.primary,
             letterSpacing: 0.5,
-            lineHeight: 1.35,
+            lineHeight: 1.4,
           }}
         >
           {text}
@@ -439,9 +457,9 @@ function H3({ text }: { text: string }) {
       style={{
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 22,
-        marginBottom: 10,
-        paddingBottom: 5,
+        marginTop: 28,
+        marginBottom: 11,
+        paddingBottom: 6,
         borderBottomWidth: 0.4,
         borderBottomColor: colors.divider,
       }}
@@ -449,7 +467,7 @@ function H3({ text }: { text: string }) {
       <View
         style={{
           width: 3,
-          height: 16,
+          height: 17,
           backgroundColor: colors.catBlue,
           marginRight: 8,
           borderRadius: 1.5,
@@ -457,11 +475,11 @@ function H3({ text }: { text: string }) {
       />
       <Text
         style={{
-          fontSize: 12.5,
+          fontSize: 13.5,
           fontWeight: 700,
           color: colors.primaryLight,
           letterSpacing: 0.3,
-          lineHeight: 1.4,
+          lineHeight: 1.45,
           flex: 1,
         }}
       >
@@ -502,7 +520,7 @@ function H4({ text }: { text: string }) {
 
 function Paragraph({ text }: { text: string }) {
   return (
-    <Text style={{ fontSize: 10.5, fontWeight: 400, color: colors.text, marginBottom: 7, lineHeight: 1.85 }}>
+    <Text style={{ fontSize: 10.5, fontWeight: 400, color: colors.text, marginBottom: 9, lineHeight: 1.9 }}>
       {renderInline(text)}
     </Text>
   );
@@ -510,13 +528,14 @@ function Paragraph({ text }: { text: string }) {
 
 // 段落間スペーサー（明示的な空行1行分・2行以上にならない設計）
 function Spacer() {
-  return <View style={{ height: 10 }} />;
+  return <View style={{ height: 14 }} />;
 }
 
 // インライン描画
 // ** はpreprocessMarkdownで完全除去済み。URLのみLink変換。
 function renderInline(text: string): React.ReactNode[] {
-  const cleaned = text.replace(/-\s*$/, '');
+  // ** の安全網除去（preprocessMarkdown で除去済みのはずだが念のため）
+  const cleaned = text.replace(/-\s*$/, '').replace(/\*\*/g, '');
 
   // URL（https://...）を検出してクリッカブルLink化
   const urlPattern = /(https?:\/\/[^\s　「」（）【】、。！？]+)/g;
@@ -748,8 +767,9 @@ function Table({ rows }: { rows: string[][] }) {
         borderWidth: 0.5,
         borderColor: colors.divider,
         borderRadius: 4,
-        overflow: 'hidden',
+        // overflow:'hidden' は react-pdf のページ境界で先頭・末尾行のボーダーを欠落させるため除去
       }}
+      wrap={false}
     >
       <View style={{ flexDirection: 'row', backgroundColor: colors.primary }} wrap={false}>
         {header.map((h, i) => (
