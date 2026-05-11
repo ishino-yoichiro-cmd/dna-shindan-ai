@@ -58,7 +58,8 @@ export function sanitizeScoreLabels(text: string): { text: string; removedCount:
     return '';
   });
 
-  return { text: result.replace(/\s{2,}/g, ' ').trim(), removedCount: count };
+  // 改行は保持（段落区切り）。連続スペース・タブのみ圧縮する
+  return { text: result.replace(/[ \t]{2,}/g, ' ').trim(), removedCount: count };
 }
 
 // ============================================================================
