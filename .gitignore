@@ -18,3 +18,4 @@ scripts/sample-output*.json
 /.harness-tmp/
 scripts/debug-*.pdf
 scripts/.local-*.local
+tsconfig.tsbuildinfo
