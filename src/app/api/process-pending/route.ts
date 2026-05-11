@@ -127,7 +127,7 @@ export async function POST(req: Request) {
   }
 
   // E-015: APIコスト予算チェック（予算95%超で新規LLM起動を停止）
-  const budgetUsd = parseFloat(process.env.ANTHROPIC_BUDGET_USD || '0');
+  const budgetUsd = process.env.ANTHROPIC_BUDGET_USD ? parseFloat(process.env.ANTHROPIC_BUDGET_USD) : 0;
   if (budgetUsd > 0) {
     const { data: costData } = await supa
       .from('dna_diagnoses')
