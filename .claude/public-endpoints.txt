@@ -20,6 +20,10 @@
 # 分身AIチャット（公開クローンボット・daily_chat_countで日次制限あり）
 /clone/[id]/chat
 
+# ヘルスチェック（監視ツール・E2Eテストから認証なしで疎通確認するための公開エンドポイント）
+# DB接続・APIキー存在確認のみ。実際のAPIを呼ばないためコスト発生なし
+/health
+
 # /pdf は 2026-05-07 に410封鎖済み
 # process-pending が renderToBuffer() を直接呼び出す形に移行済みのためデッドコード
 # ホワイトリスト登録不要（verify-auth-coverage.sh が SEALED として検出）
