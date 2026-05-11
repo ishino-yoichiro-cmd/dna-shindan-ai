@@ -94,6 +94,40 @@ function preprocessMarkdown(md: string): string {
   });
   // 行中の ・ → 直前に改行を挿入（行頭の ・ はそのまま）
   md2 = md2.replace(/([^\n・])\s+(・)/g, '$1\n$2');
+
+  // === 前処理0.5: 長い段落行を文単位で2文ずつ段落化 ===
+  // LLMが改行なしで複数文を1行に出力するケース（全文字が1〜数行の場合）の対策
+  // 「。 」（句点＋半角スペース）を段落区切りとして検出し、2文ずつまとめて改段落する
+  {
+    const LONG_THRESH = 150; // この文字数を超える行を処理対象とする
+    const SENTENCES_PER_PARA = 2; // 1段落あたりの文数
+    const rawLines = md2.split('\n');
+    const rebuilt: string[] = [];
+    for (const line of rawLines) {
+      // 見出し・リスト・表・コールアウト行はスキップ
+      if (/^(#{1,4} |[-*] |[0-9]+[.)]\s|\||>|:::)/.test(line.trim())) {
+        rebuilt.push(line);
+        continue;
+      }
+      // 短い行またはスペースなし（分割できない）はスキップ
+      if (line.length <= LONG_THRESH || !line.includes('。 ')) {
+        rebuilt.push(line);
+        continue;
+      }
+      // 「。 」で文を分割して再組み立て
+      const parts = line.split('。 ');
+      const sentences = parts.map((p, i) => (i < parts.length - 1 ? p + '。' : p)).filter(s => s.trim());
+      if (sentences.length <= 1) { rebuilt.push(line); continue; }
+      // SENTENCES_PER_PARA 文ずつグループ化
+      for (let i = 0; i < sentences.length; i += SENTENCES_PER_PARA) {
+        const group = sentences.slice(i, i + SENTENCES_PER_PARA).join('').trim();
+        if (group) rebuilt.push(group);
+        if (i + SENTENCES_PER_PARA < sentences.length) rebuilt.push(''); // 段落間空行
+      }
+    }
+    md2 = rebuilt.join('\n');
+  }
+
   const lines = md2.split('\n');
   const cleaned: string[] = [];
 
