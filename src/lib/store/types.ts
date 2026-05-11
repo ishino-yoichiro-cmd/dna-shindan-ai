@@ -115,3 +115,9 @@ export function stepToQuestionId(step: number): string | null {
 export const STORAGE_KEY = 'dna-shindan-ai:session-v3';
 export const STORAGE_KEY_LEGACY = ['dna-shindan-ai:session-v1', 'dna-shindan-ai:session-v2'] as const;
 export const STORAGE_TTL_MS = 24 * 60 * 60 * 1000;
+// 送信後に diagnosisId を保持するキー（match ページで自動入力に使用）
+export const STORAGE_KEY_LAST_SUBMIT = 'dna-shindan-ai:last-submit';
+// 全送信履歴（最大100件）を蓄積するキー
+export const STORAGE_KEY_ALL_SUBMISSIONS = 'dna-shindan-ai:all-submissions';
+// マイページ用パスワードのキープレフィックス（me-pw:<diagnosisId> 形式）
+export const STORAGE_KEY_ME_PW_PREFIX = 'me-pw:';

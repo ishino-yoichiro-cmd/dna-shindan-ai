@@ -219,7 +219,7 @@ export async function POST(req: NextRequest) {
         console.error('[submit] supabase insert error', error);
       } else {
         diagnosisId = (data as { id: string } | null)?.id ?? null;
-        console.log('[submit] inserted', diagnosisId);
+        // diagnosisId は上位スコープで使用。ログは本番不要のため削除
       }
     } catch (e) {
       console.error('[submit] supabase exception', e);

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { STORAGE_KEY_LAST_SUBMIT, STORAGE_KEY_ME_PW_PREFIX } from '@/lib/store/types';
 
 // URL または UUID文字列からdiagnosis IDを抽出する
 function extractId(input: string): string {
@@ -31,7 +32,7 @@ function MatchPageInner() {
   // localStorage から自分のidとパスワードを自動取得
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const last = window.localStorage.getItem('dna-shindan-ai:last-submit');
+    const last = window.localStorage.getItem(STORAGE_KEY_LAST_SUBMIT);
     if (last) {
       try {
         const data = JSON.parse(last) as { diagnosisId?: string };
@@ -40,9 +41,9 @@ function MatchPageInner() {
         }
       } catch {}
     }
-    const keys = Object.keys(window.localStorage).filter((k) => k.startsWith('me-pw:'));
+    const keys = Object.keys(window.localStorage).filter((k) => k.startsWith(STORAGE_KEY_ME_PW_PREFIX));
     if (keys.length > 0) {
-      const id = keys[0].replace('me-pw:', '');
+      const id = keys[0].replace(STORAGE_KEY_ME_PW_PREFIX, '');
       if (!selfUrl) setSelfUrl(`https://dna-shindan-ai.vercel.app/clone/${id}`);
       const pw = window.localStorage.getItem(keys[0]) ?? '';
       setSelfPassword(pw);

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDiagnosis } from '@/lib/store/DiagnosisProvider';
 import { SELECT_QUESTIONS, NARRATIVE_QUESTIONS } from '@/data/questions';
-import { TOTAL_STEPS, stepToQuestionId } from '@/lib/store/types';
+import { TOTAL_STEPS, stepToQuestionId, STORAGE_KEY, STORAGE_KEY_LAST_SUBMIT, STORAGE_KEY_ALL_SUBMISSIONS } from '@/lib/store/types';
 
 import { IntroScreen } from './IntroScreen';
 import { ProgressBar } from './ProgressBar';
@@ -35,7 +35,7 @@ export function DiagnosisFlow() {
 
   const hasResume =
     typeof window !== 'undefined' &&
-    !!window.localStorage.getItem('dna-shindan-ai:session-v3') &&
+    !!window.localStorage.getItem(STORAGE_KEY) &&
     currentStep >= 2;
 
   useEffect(() => {
@@ -82,11 +82,11 @@ export function DiagnosisFlow() {
       // localStorage保存（last-submit + all-submissions append）
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(
-          'dna-shindan-ai:last-submit',
+          STORAGE_KEY_LAST_SUBMIT,
           JSON.stringify(submitPayload),
         );
         // 履歴蓄積（管理画面で全件閲覧）
-        const prev = window.localStorage.getItem('dna-shindan-ai:all-submissions');
+        const prev = window.localStorage.getItem(STORAGE_KEY_ALL_SUBMISSIONS);
         let arr: unknown[] = [];
         try {
           if (prev) arr = JSON.parse(prev);
@@ -98,7 +98,7 @@ export function DiagnosisFlow() {
         // 最大100件まで保持（古いものから削除）
         if (arr.length > 100) arr = arr.slice(0, 100);
         window.localStorage.setItem(
-          'dna-shindan-ai:all-submissions',
+          STORAGE_KEY_ALL_SUBMISSIONS,
           JSON.stringify(arr),
         );
       }

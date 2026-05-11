@@ -43,8 +43,6 @@ export function registerFonts() {
 
   const regularSrc = getFontSrc('NotoSansJP-Regular.ttf');
   const boldSrc = getFontSrc('NotoSansJP-Bold.ttf');
-  console.log('[pdf/styles] font sources:', { regularSrc, boldSrc });
-
   Font.register({
     family: 'NotoSansJP',
     fonts: [

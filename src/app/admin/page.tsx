@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
+// admin セッション保持用 localStorage キー（リテラル直書き禁止 → 定数化）
+const STORAGE_KEY_ADMIN_PASS = 'dna-shindan-ai:admin-pass';
+
 // フロントエンドではパスワードをハードコードしない。
 // ユーザーが入力したパスワードをそのままAPIに渡して検証させる設計に統一。
 // （クライアント側でのチェックはAPI側でも検証されるため、セキュリティ上は問題ない）
@@ -78,12 +81,12 @@ export default function AdminPage() {
       setAuthed(true);
       // セッション維持のためlocalStorageに保存
       if (typeof window !== 'undefined') {
-        window.localStorage.setItem('admin-pass', usePw);
+        window.localStorage.setItem(STORAGE_KEY_ADMIN_PASS, usePw);
       }
     } else {
       setLoginError('パスワードが違います');
       if (typeof window !== 'undefined') {
-        window.localStorage.removeItem('admin-pass');
+        window.localStorage.removeItem(STORAGE_KEY_ADMIN_PASS);
       }
     }
   };
@@ -92,7 +95,7 @@ export default function AdminPage() {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const urlPass = params.get('pass');
-    const savedPass = window.localStorage.getItem('admin-pass');
+    const savedPass = window.localStorage.getItem(STORAGE_KEY_ADMIN_PASS);
 
     // URLパスワード優先、次にlocalStorage保存済みパスワード
     const autoPass = urlPass ?? savedPass;

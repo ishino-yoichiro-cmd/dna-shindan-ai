@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Card } from '@/components/diagnosis/_ui';
+import { STORAGE_KEY_LAST_SUBMIT } from '@/lib/store/types';
 
 interface SubmitPayload {
   userInfo?: {
@@ -34,7 +35,7 @@ function ResultContent() {
       setSubmitError(decodeURIComponent(urlError));
     }
     if (typeof window === 'undefined') return;
-    const raw = window.localStorage.getItem('dna-shindan-ai:last-submit');
+    const raw = window.localStorage.getItem(STORAGE_KEY_LAST_SUBMIT);
     if (!raw) {
       setError('診断データが見つかりません。最初からやり直してください。');
       return;
