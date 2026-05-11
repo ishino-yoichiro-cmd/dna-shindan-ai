@@ -48,7 +48,7 @@ jobs:
 
       - name: テストレポートをアーティファクトに保存
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ github.sha }}
           path: playwright-report/
@@ -56,7 +56,7 @@ jobs:
 
       - name: 失敗スクリーンショットを保存
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-screenshots-${{ github.sha }}
           path: test-results/
