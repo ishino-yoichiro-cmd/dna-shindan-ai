@@ -1,0 +1,47 @@
+{
+  "_comment": "プロダクト固有の e2e 期待値。各プロダクトで編集する。",
+  "_required": [
+    "main_url_path",
+    "main_keywords"
+  ],
+  "main_url_path": "/",
+  "main_keywords": [
+    "DNA診断AI — 自分の分身AIを作るための診断"
+  ],
+  "form_smoke": {
+    "_enabled": false,
+    "endpoint": "/api/submit",
+    "method": "POST",
+    "payload": {
+      "name": "スモークテスト",
+      "email": "smoke+e2e@example.com"
+    },
+    "expect_status_2xx": true,
+    "expect_body_contains": "ok",
+    "expect_body_not_contains": "error"
+  },
+  "navigation_paths": [
+    "/"
+  ],
+  "ui_flows": [
+    {
+      "name": "トップから第1問への遷移（IntroScreen 介在禁止）",
+      "start_path": "/",
+      "click_text": "診断をはじめる",
+      "expect_after_click_text": "まず、お名前を教えてください",
+      "expect_url_unchanged": true
+    }
+  ],
+  "a11y_check": {
+    "_enabled": true,
+    "fail_on_violations": [
+      "serious",
+      "critical"
+    ]
+  },
+  "performance_budget": {
+    "_enabled": false,
+    "lcp_ms_max": 2500,
+    "ttfb_ms_max": 800
+  }
+}

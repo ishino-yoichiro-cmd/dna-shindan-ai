@@ -1,0 +1,765 @@
+{
+  "generatedAt": "2026-04-28T05:12:16.377Z",
+  "totalQuestions": 26,
+  "patterns": {
+    "extrovert": {
+      "label": "外向型（E高・社交志向）",
+      "answers": {
+        "Q5": "A",
+        "Q6": "A",
+        "Q7": "C",
+        "Q8": "A",
+        "Q9": "C",
+        "Q10": "C",
+        "Q11": "A",
+        "Q12": "A",
+        "Q13": "C",
+        "Q14": "A",
+        "Q15": "D",
+        "Q16": "D",
+        "Q17": "B",
+        "Q18": "C",
+        "Q19": "C",
+        "Q20": "B",
+        "Q21": "A",
+        "Q22": "E",
+        "Q23": "C",
+        "Q24": "B",
+        "Q25": "A",
+        "Q26": "C",
+        "Q27": "B",
+        "Q28": "D",
+        "Q29": "D",
+        "Q30": "E"
+      },
+      "result": {
+        "raw": {
+          "big5": {
+            "E": 18,
+            "A": 33,
+            "C": 2,
+            "N": 0,
+            "O": 5
+          },
+          "mbti": {
+            "EI": 7,
+            "SN": 2,
+            "TF": -5,
+            "JP": -1
+          },
+          "ennea": {
+            "E1": 2,
+            "E2": 17,
+            "E3": 2,
+            "E4": 0,
+            "E5": 3,
+            "E6": 8,
+            "E7": 5,
+            "E8": 2,
+            "E9": 12
+          },
+          "riasec": {
+            "R": 0,
+            "I": 1,
+            "A": 0,
+            "S": 15,
+            "EE": 3,
+            "Co": 1
+          },
+          "vak": {
+            "V": 3,
+            "Au": 10,
+            "K": 0
+          },
+          "attach": {
+            "At-Sec": 9,
+            "At-Av": 0,
+            "At-Anx": 6,
+            "At-Fea": 0
+          },
+          "love": {
+            "L-Time": 6,
+            "L-Word": 3,
+            "L-Touch": 1.5,
+            "L-Gift": 1,
+            "L-Act": 0
+          },
+          "entre": {
+            "EnT1": 0,
+            "EnT2": 11,
+            "EnT3": 2,
+            "EnT4": 2,
+            "EnT5": 16,
+            "EnT6": 0,
+            "EnT7": 1,
+            "EnT8": 4
+          }
+        },
+        "normalized": {
+          "big5": {
+            "E": 55,
+            "A": 100,
+            "C": 6,
+            "N": 0,
+            "O": 15
+          },
+          "mbti": {
+            "EI": 100,
+            "SN": 58,
+            "TF": 0,
+            "JP": 33
+          },
+          "ennea": {
+            "E1": 12,
+            "E2": 100,
+            "E3": 12,
+            "E4": 0,
+            "E5": 18,
+            "E6": 47,
+            "E7": 29,
+            "E8": 12,
+            "E9": 71
+          },
+          "riasec": {
+            "R": 0,
+            "I": 7,
+            "A": 0,
+            "S": 100,
+            "EE": 20,
+            "Co": 7
+          },
+          "vak": {
+            "V": 30,
+            "Au": 100,
+            "K": 0
+          },
+          "attach": {
+            "At-Sec": 100,
+            "At-Av": 0,
+            "At-Anx": 67,
+            "At-Fea": 0
+          },
+          "love": {
+            "L-Time": 100,
+            "L-Word": 50,
+            "L-Touch": 25,
+            "L-Gift": 17,
+            "L-Act": 0
+          },
+          "entre": {
+            "EnT1": 0,
+            "EnT2": 69,
+            "EnT3": 13,
+            "EnT4": 13,
+            "EnT5": 100,
+            "EnT6": 0,
+            "EnT7": 6,
+            "EnT8": 25
+          }
+        },
+        "topTypes": {
+          "mbti": {
+            "type": "ESFP",
+            "axes": {
+              "EI": {
+                "letter": "E",
+                "strength": 100
+              },
+              "SN": {
+                "letter": "S",
+                "strength": 29
+              },
+              "TF": {
+                "letter": "F",
+                "strength": 71
+              },
+              "JP": {
+                "letter": "P",
+                "strength": 14
+              }
+            }
+          },
+          "ennea": {
+            "main": {
+              "code": "E2",
+              "name": "助力",
+              "score": 17
+            },
+            "wing": {
+              "code": "E1",
+              "name": "完璧",
+              "score": 2
+            },
+            "expression": "2w1"
+          },
+          "entre": {
+            "main": {
+              "code": "EnT5",
+              "name": "サポーター",
+              "subtitle": "巽風",
+              "score": 16
+            },
+            "sub": {
+              "code": "EnT2",
+              "name": "コネクター",
+              "subtitle": "兌沢",
+              "score": 11
+            }
+          },
+          "big5DerivedType": {
+            "code": "O+C+E+A+",
+            "label": "革新リーダー"
+          },
+          "riasecTop3": [
+            {
+              "code": "S",
+              "name": "社会的（Social）",
+              "score": 15
+            },
+            {
+              "code": "EE",
+              "name": "企業的（Enterprising）",
+              "score": 3
+            },
+            {
+              "code": "I",
+              "name": "研究的（Investigative）",
+              "score": 1
+            }
+          ],
+          "vakTop": {
+            "code": "Au",
+            "name": "聴覚優位",
+            "score": 10
+          },
+          "attachTop": {
+            "code": "At-Sec",
+            "name": "安定型",
+            "score": 9
+          },
+          "loveTop": {
+            "code": "L-Time",
+            "name": "クオリティ・タイム",
+            "score": 6
+          }
+        },
+        "meta": {
+          "answeredCount": 26,
+          "totalSelectQuestions": 26,
+          "completionRate": 1,
+          "weights": {
+            "lTouch": 1.5
+          },
+          "executedAt": "2026-04-28T05:12:16.376Z",
+          "durationMs": 1
+        }
+      }
+    },
+    "introvert": {
+      "label": "内向型（I高・思索志向）",
+      "answers": {
+        "Q5": "B",
+        "Q6": "C",
+        "Q7": "B",
+        "Q8": "B",
+        "Q9": "B",
+        "Q10": "A",
+        "Q11": "C",
+        "Q12": "C",
+        "Q13": "B",
+        "Q14": "B",
+        "Q15": "A",
+        "Q16": "A",
+        "Q17": "C",
+        "Q18": "B",
+        "Q19": "D",
+        "Q20": "A",
+        "Q21": "C",
+        "Q22": "C",
+        "Q23": "A",
+        "Q24": "D",
+        "Q25": "B",
+        "Q26": "D",
+        "Q27": "D",
+        "Q28": "A",
+        "Q29": "A",
+        "Q30": "F"
+      },
+      "result": {
+        "raw": {
+          "big5": {
+            "E": -7,
+            "A": 2,
+            "C": 24,
+            "N": -2,
+            "O": 23
+          },
+          "mbti": {
+            "EI": -5,
+            "SN": -2,
+            "TF": 4,
+            "JP": 5
+          },
+          "ennea": {
+            "E1": 10,
+            "E2": 3,
+            "E3": 5,
+            "E4": 10,
+            "E5": 17,
+            "E6": 5,
+            "E7": 0,
+            "E8": 1,
+            "E9": 2
+          },
+          "riasec": {
+            "R": 2,
+            "I": 14,
+            "A": 2,
+            "S": 2,
+            "EE": 2,
+            "Co": 9
+          },
+          "vak": {
+            "V": 11,
+            "Au": 1,
+            "K": 0
+          },
+          "attach": {
+            "At-Sec": 5,
+            "At-Av": 8,
+            "At-Anx": 1,
+            "At-Fea": 1
+          },
+          "love": {
+            "L-Time": 3,
+            "L-Word": 3,
+            "L-Touch": 0,
+            "L-Gift": 1,
+            "L-Act": 0
+          },
+          "entre": {
+            "EnT1": 6,
+            "EnT2": 0,
+            "EnT3": 5,
+            "EnT4": 0,
+            "EnT5": 0,
+            "EnT6": 18,
+            "EnT7": 4,
+            "EnT8": 6
+          }
+        },
+        "normalized": {
+          "big5": {
+            "E": 0,
+            "A": 29,
+            "C": 100,
+            "N": 16,
+            "O": 97
+          },
+          "mbti": {
+            "EI": 0,
+            "SN": 30,
+            "TF": 90,
+            "JP": 100
+          },
+          "ennea": {
+            "E1": 59,
+            "E2": 18,
+            "E3": 29,
+            "E4": 59,
+            "E5": 100,
+            "E6": 29,
+            "E7": 0,
+            "E8": 6,
+            "E9": 12
+          },
+          "riasec": {
+            "R": 0,
+            "I": 100,
+            "A": 0,
+            "S": 0,
+            "EE": 0,
+            "Co": 58
+          },
+          "vak": {
+            "V": 100,
+            "Au": 9,
+            "K": 0
+          },
+          "attach": {
+            "At-Sec": 57,
+            "At-Av": 100,
+            "At-Anx": 0,
+            "At-Fea": 0
+          },
+          "love": {
+            "L-Time": 100,
+            "L-Word": 100,
+            "L-Touch": 0,
+            "L-Gift": 33,
+            "L-Act": 0
+          },
+          "entre": {
+            "EnT1": 33,
+            "EnT2": 0,
+            "EnT3": 28,
+            "EnT4": 0,
+            "EnT5": 0,
+            "EnT6": 100,
+            "EnT7": 22,
+            "EnT8": 33
+          }
+        },
+        "topTypes": {
+          "mbti": {
+            "type": "INTJ",
+            "axes": {
+              "EI": {
+                "letter": "I",
+                "strength": 100
+              },
+              "SN": {
+                "letter": "N",
+                "strength": 40
+              },
+              "TF": {
+                "letter": "T",
+                "strength": 80
+              },
+              "JP": {
+                "letter": "J",
+                "strength": 100
+              }
+            }
+          },
+          "ennea": {
+            "main": {
+              "code": "E5",
+              "name": "探求",
+              "score": 17
+            },
+            "wing": {
+              "code": "E4",
+              "name": "個性",
+              "score": 10
+            },
+            "expression": "5w4"
+          },
+          "entre": {
+            "main": {
+              "code": "EnT6",
+              "name": "アナライザー",
+              "subtitle": "坎水",
+              "score": 18
+            },
+            "sub": {
+              "code": "EnT1",
+              "name": "クリエイター",
+              "subtitle": "創天",
+              "score": 6
+            }
+          },
+          "big5DerivedType": {
+            "code": "O+C+E-A+",
+            "label": "思索建築家"
+          },
+          "riasecTop3": [
+            {
+              "code": "I",
+              "name": "研究的（Investigative）",
+              "score": 14
+            },
+            {
+              "code": "Co",
+              "name": "慣習的（Conventional）",
+              "score": 9
+            },
+            {
+              "code": "R",
+              "name": "現実的（Realistic）",
+              "score": 2
+            }
+          ],
+          "vakTop": {
+            "code": "V",
+            "name": "視覚優位",
+            "score": 11
+          },
+          "attachTop": {
+            "code": "At-Av",
+            "name": "回避型",
+            "score": 8
+          },
+          "loveTop": {
+            "code": "L-Time",
+            "name": "クオリティ・タイム",
+            "score": 3
+          }
+        },
+        "meta": {
+          "answeredCount": 26,
+          "totalSelectQuestions": 26,
+          "completionRate": 1,
+          "weights": {
+            "lTouch": 1.5
+          },
+          "executedAt": "2026-04-28T05:12:16.377Z",
+          "durationMs": 1
+        }
+      }
+    },
+    "random": {
+      "label": "ランダム（seed=42）",
+      "answers": {
+        "Q5": "B",
+        "Q6": "A",
+        "Q7": "C",
+        "Q8": "A",
+        "Q9": "B",
+        "Q10": "A",
+        "Q11": "B",
+        "Q12": "A",
+        "Q13": "E",
+        "Q14": "D",
+        "Q15": "E",
+        "Q16": "B",
+        "Q17": "C",
+        "Q18": "D",
+        "Q19": "C",
+        "Q20": "A",
+        "Q21": "A",
+        "Q22": "E",
+        "Q23": "D",
+        "Q24": "D",
+        "Q25": "C",
+        "Q26": "A",
+        "Q27": "C",
+        "Q28": "B",
+        "Q29": "E",
+        "Q30": "G"
+      },
+      "result": {
+        "raw": {
+          "big5": {
+            "E": 4,
+            "A": 13,
+            "C": 9,
+            "N": -2,
+            "O": 13
+          },
+          "mbti": {
+            "EI": 0,
+            "SN": 1,
+            "TF": -3,
+            "JP": -1
+          },
+          "ennea": {
+            "E1": 6,
+            "E2": 7,
+            "E3": 4,
+            "E4": 7,
+            "E5": 5,
+            "E6": 7,
+            "E7": 4,
+            "E8": 1,
+            "E9": 9
+          },
+          "riasec": {
+            "R": 4,
+            "I": 5,
+            "A": 2,
+            "S": 5,
+            "EE": 5,
+            "Co": 5
+          },
+          "vak": {
+            "V": 4,
+            "Au": 2,
+            "K": 5
+          },
+          "attach": {
+            "At-Sec": 8,
+            "At-Av": 2,
+            "At-Anx": 3,
+            "At-Fea": 1
+          },
+          "love": {
+            "L-Time": 3,
+            "L-Word": 1,
+            "L-Touch": 1.5,
+            "L-Gift": 2,
+            "L-Act": 2
+          },
+          "entre": {
+            "EnT1": 3,
+            "EnT2": 4,
+            "EnT3": 7,
+            "EnT4": 6,
+            "EnT5": 7,
+            "EnT6": 5,
+            "EnT7": 4,
+            "EnT8": 2
+          }
+        },
+        "normalized": {
+          "big5": {
+            "E": 40,
+            "A": 100,
+            "C": 73,
+            "N": 0,
+            "O": 100
+          },
+          "mbti": {
+            "EI": 75,
+            "SN": 100,
+            "TF": 0,
+            "JP": 50
+          },
+          "ennea": {
+            "E1": 63,
+            "E2": 75,
+            "E3": 38,
+            "E4": 75,
+            "E5": 50,
+            "E6": 75,
+            "E7": 38,
+            "E8": 0,
+            "E9": 100
+          },
+          "riasec": {
+            "R": 67,
+            "I": 100,
+            "A": 0,
+            "S": 100,
+            "EE": 100,
+            "Co": 100
+          },
+          "vak": {
+            "V": 67,
+            "Au": 0,
+            "K": 100
+          },
+          "attach": {
+            "At-Sec": 100,
+            "At-Av": 14,
+            "At-Anx": 29,
+            "At-Fea": 0
+          },
+          "love": {
+            "L-Time": 100,
+            "L-Word": 0,
+            "L-Touch": 25,
+            "L-Gift": 50,
+            "L-Act": 50
+          },
+          "entre": {
+            "EnT1": 20,
+            "EnT2": 40,
+            "EnT3": 100,
+            "EnT4": 80,
+            "EnT5": 100,
+            "EnT6": 60,
+            "EnT7": 40,
+            "EnT8": 0
+          }
+        },
+        "topTypes": {
+          "mbti": {
+            "type": "ESFP",
+            "axes": {
+              "EI": {
+                "letter": "E",
+                "strength": 0
+              },
+              "SN": {
+                "letter": "S",
+                "strength": 33
+              },
+              "TF": {
+                "letter": "F",
+                "strength": 100
+              },
+              "JP": {
+                "letter": "P",
+                "strength": 33
+              }
+            }
+          },
+          "ennea": {
+            "main": {
+              "code": "E9",
+              "name": "調和",
+              "score": 9
+            },
+            "wing": {
+              "code": "E1",
+              "name": "完璧",
+              "score": 6
+            },
+            "expression": "9w1"
+          },
+          "entre": {
+            "main": {
+              "code": "EnT3",
+              "name": "メカニック",
+              "subtitle": "離火",
+              "score": 7
+            },
+            "sub": {
+              "code": "EnT5",
+              "name": "サポーター",
+              "subtitle": "巽風",
+              "score": 7
+            }
+          },
+          "big5DerivedType": {
+            "code": "O+C+E+A+",
+            "label": "革新リーダー"
+          },
+          "riasecTop3": [
+            {
+              "code": "I",
+              "name": "研究的（Investigative）",
+              "score": 5
+            },
+            {
+              "code": "S",
+              "name": "社会的（Social）",
+              "score": 5
+            },
+            {
+              "code": "EE",
+              "name": "企業的（Enterprising）",
+              "score": 5
+            }
+          ],
+          "vakTop": {
+            "code": "K",
+            "name": "体感覚優位",
+            "score": 5
+          },
+          "attachTop": {
+            "code": "At-Sec",
+            "name": "安定型",
+            "score": 8
+          },
+          "loveTop": {
+            "code": "L-Time",
+            "name": "クオリティ・タイム",
+            "score": 3
+          }
+        },
+        "meta": {
+          "answeredCount": 26,
+          "totalSelectQuestions": 26,
+          "completionRate": 1,
+          "weights": {
+            "lTouch": 1.5
+          },
+          "executedAt": "2026-04-28T05:12:16.377Z",
+          "durationMs": 0
+        }
+      }
+    }
+  }
+}

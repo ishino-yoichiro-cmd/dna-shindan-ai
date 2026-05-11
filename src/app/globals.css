@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-navy: #0a1f44;
+  --color-navy-deep: #050f24;
+  --color-navy-soft: #14305c;
+  --color-gold: #c9a44b;
+  --color-gold-light: #e3c47a;
+  --color-offwhite: #f5f1e6;
+  --color-offwhite-dim: #d9d3c2;
+  --color-ink: #11141b;
+}
+
+html, body {
+  background-color: var(--color-navy-deep);
+  color: var(--color-offwhite);
+  font-feature-settings: 'palt';
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "Meiryo", system-ui, sans-serif;
+}
+
+/* スクロールバーの控えめ化 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(201, 164, 75, 0.25); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(201, 164, 75, 0.45); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* 入力フォーカスのアウトライン統一 */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+/* 16px最低フォントサイズ（モバイルズーム抑止） */
+input, textarea, select {
+  font-size: 16px;
+}
+
+/* ステップ遷移アニメ */
+@keyframes step-fade-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.step-enter {
+  animation: step-fade-in 0.35s ease-out both;
+}
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 164, 75, 0.5); }
+  50% { box-shadow: 0 0 0 12px rgba(201, 164, 75, 0); }
+}
+.pulse-gold { animation: pulse-gold 2.4s ease-in-out infinite; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.fade-in { animation: fade-in 0.4s ease-out both; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer-gold {
+  background: linear-gradient(
+    90deg,
+    rgba(201, 164, 75, 0.0) 0%,
+    rgba(201, 164, 75, 0.5) 50%,
+    rgba(201, 164, 75, 0.0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s linear infinite;
+}
+
+/* レポートぼかしチラ見せ */
+.report-blur {
+  filter: blur(7px);
+  user-select: none;
+  pointer-events: none;
+}

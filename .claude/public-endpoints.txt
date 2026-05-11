@@ -1,0 +1,25 @@
+# DNA診断AI — 公開APIエンドポイントホワイトリスト
+# route.tsのsrc/app/api/ 以降のパス（/api/は含めない）
+# 新規追加時は必ず理由コメントを書くこと。
+
+# 診断フォーム送信（誰でも診断を受けられる公開API）
+/submit
+
+# 診断設問一覧取得（静的データ・DB保存なし）
+/questions
+
+# 命術プレビュー計算（計算のみ・DB保存なし）
+/celestial-preview
+
+# スコアリング計算（計算のみ・DB保存なし）
+/score
+
+# 共感メッセージ（診断結果ページ表示・通常はプールから取得・LLM呼び出しほぼなし）
+/empathy
+
+# 分身AIチャット（公開クローンボット・daily_chat_countで日次制限あり）
+/clone/[id]/chat
+
+# /pdf は 2026-05-07 に410封鎖済み
+# process-pending が renderToBuffer() を直接呼び出す形に移行済みのためデッドコード
+# ホワイトリスト登録不要（verify-auth-coverage.sh が SEALED として検出）

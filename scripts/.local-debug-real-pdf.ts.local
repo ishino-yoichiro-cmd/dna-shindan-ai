@@ -1,0 +1,106 @@
+// 実DBレコードからPDF生成してローカルで内容確認
+// 実行：npx tsx scripts/debug-real-pdf.ts e7554eaf-eeb4-4245-8c56-8d25563c1a13
+
+import fs from 'node:fs';
+import path from 'node:path';
+import React from 'react';
+import { renderToBuffer } from '@react-pdf/renderer';
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+import { Report } from '../src/components/pdf/Report';
+import type { ReportProps } from '../src/components/pdf/types';
+
+// .env.local 読み込み
+const envPath = path.join(process.cwd(), '.env.local');
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+}
+// keys.envからのfallback
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL && fs.existsSync('/tmp/market-prod.env')) {
+  dotenv.config({ path: '/tmp/market-prod.env' });
+}
+
+async function main() {
+  const id = process.argv[2] ?? 'e7554eaf-eeb4-4245-8c56-8d25563c1a13';
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    console.error('Supabase env missing');
+    process.exit(1);
+  }
+  const supa = createClient(url, key, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  console.log(`[1] DB fetch: ${id}`);
+  const { data, error } = await supa
+    .from('dna_diagnoses')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data) {
+    console.error('fetch failed:', error?.message);
+    process.exit(1);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = data as any;
+
+  console.log('[2] DB row userInfo:');
+  console.log({
+    first_name: row.first_name,
+    last_name: row.last_name,
+    birth_date: row.birth_date,
+    birth_date_type: typeof row.birth_date,
+    birth_time: row.birth_time,
+    birth_place_label: row.birth_place_label,
+  });
+
+  // process-pending と同じ構築
+  const fullName = [row.last_name, row.first_name].filter(Boolean).join(' ').trim() || 'あなた';
+
+  const reportProps: ReportProps = {
+    userInfo: {
+      fullName,
+      birthDate: row.birth_date ?? '1985-01-01',
+      birthTime: row.birth_time ?? undefined,
+      birthPlace: row.birth_place_label ?? undefined,
+      email: row.email ?? undefined,
+      styleSample: row.style_sample ?? undefined,
+      ngExpressions: [],
+    },
+    celestial: row.celestial_results,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    scores: {
+      bigFive: { O: 50, C: 50, E: 50, A: 50, N: 50 },
+      bigFiveType: '—',
+      enneagram: { primary: 5, wing: 4 },
+      riasec: { R: 50, I: 50, A: 50, S: 50, E: 50, C: 50, top3: [] },
+      vak: { V: 33, A: 33, K: 33 },
+      attachment: 'secure',
+      loveLanguage: { time: 20, words: 20, touch: 20, gifts: 20, acts: 20 },
+      entrepreneur: { primary: '—', secondary: '—' },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    llmContent: (row.report_text ?? {}) as any,
+    relationshipTag: row.relationship_tag ?? 'マブダチ',
+  };
+
+  console.log('[3] PDF userInfo (passing to Report):');
+  console.log(JSON.stringify(reportProps.userInfo, null, 2));
+
+  console.log('[4] レンダリング中...');
+  const buffer = await renderToBuffer(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    React.createElement(Report, reportProps as any),
+  );
+
+  const out = path.join(process.cwd(), 'scripts', `debug-${id.slice(0, 8)}.pdf`);
+  fs.writeFileSync(out, buffer);
+  console.log(`[5] OK: ${out} (${(buffer.byteLength / 1024).toFixed(1)} KB)`);
+}
+
+main().catch((e) => {
+  console.error('FAILED:', e);
+  process.exit(1);
+});

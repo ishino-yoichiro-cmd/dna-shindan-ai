@@ -1,0 +1,63 @@
+name: E2E テスト（Playwright）
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  # 手動実行（本番デプロイ前の確認用）
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'テスト対象URL（空=本番URL）'
+        required: false
+        default: ''
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      E2E_BASE_URL: ${{ github.event.inputs.base_url || 'https://dna-shindan-ai.vercel.app' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 依存関係インストール
+        run: npm ci
+
+      - name: Playwright ブラウザインストール
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E テスト実行
+        run: npx playwright test --project=chromium-desktop
+        env:
+          E2E_BASE_URL: ${{ env.E2E_BASE_URL }}
+          CI: true
+
+      - name: テストレポートをアーティファクトに保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: 失敗スクリーンショットを保存
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots-${{ github.sha }}
+          path: test-results/
+          retention-days: 7

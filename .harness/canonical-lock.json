@@ -1,0 +1,7 @@
+{
+  "locked_at": "2026-05-04T22:48:42Z",
+  "hashes": {
+    "src/app/layout.tsx": "d27a63a5e66001bc86ee88e9a15fe47b9585a9967d8be26b4e736366f536587c",
+    "src/app/page.tsx": "6c6c540eca29fe5d436311b825610075699b5689f060c631a0cfd4bea0d39048"
+  }
+}
