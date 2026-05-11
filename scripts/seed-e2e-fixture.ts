@@ -99,7 +99,7 @@ async function main() {
   console.log(`   completed_at: ${data.completed_at}`);
   console.log('\n以下の環境変数を .env.local と GitHub Secrets に追加してください:');
   console.log(`   E2E_FIXTURE_ID=${FIXTURE_ID}`);
-  console.log(`   E2E_FIXTURE_PASSWORD=E2E-SMOKE-FIXTURE-2026`);
+  console.log('   E2E_FIXTURE_PASSWORD=<スクリプト内ハードコード値を .env.local に設定済み>');
   console.log(`   E2E_FIXTURE_CLONE_URL=https://dna-shindan-ai.vercel.app/clone/${FIXTURE_ID}`);
 }
 
