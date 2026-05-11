@@ -97,9 +97,10 @@ function preprocessMarkdown(md: string): string {
 
   // === 前処理0.5: 長い段落行を文単位で2文ずつ段落化 ===
   // LLMが改行なしで複数文を1行に出力するケース（全文字が1〜数行の場合）の対策
-  // 「。 」（句点＋半角スペース）を段落区切りとして検出し、2文ずつまとめて改段落する
+  // 句点（。！？）を文末として検出し、2文ずつ段落化する
+  // 閉じ括弧（」）』）直前の句点は文末扱いしない（引用内の句点を誤分割しないため）
   {
-    const LONG_THRESH = 150; // この文字数を超える行を処理対象とする
+    const LONG_THRESH = 100; // この文字数を超える行を処理対象とする
     const SENTENCES_PER_PARA = 2; // 1段落あたりの文数
     const rawLines = md2.split('\n');
     const rebuilt: string[] = [];
@@ -109,16 +110,20 @@ function preprocessMarkdown(md: string): string {
         rebuilt.push(line);
         continue;
       }
-      // 短い行またはスペースなし（分割できない）はスキップ
-      if (line.length <= LONG_THRESH || !line.includes('。 ')) {
+      if (line.length <= LONG_THRESH) {
         rebuilt.push(line);
         continue;
       }
-      // 「。 」で文を分割して再組み立て
-      const parts = line.split('。 ');
-      const sentences = parts.map((p, i) => (i < parts.length - 1 ? p + '。' : p)).filter(s => s.trim());
-      if (sentences.length <= 1) { rebuilt.push(line); continue; }
-      // SENTENCES_PER_PARA 文ずつグループ化
+      // 句点（。！？）で文を分割する
+      // 閉じ括弧（」）』）の直前は文末ではないためスキップ
+      // 例: 「完璧です。」→ 分割しない / 「問題ありません。次の」→ 分割する
+      const splitLine = line.replace(/([。！？])(?![」）』」）])/g, '$1\n');
+      const sentences = splitLine.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+      if (sentences.length <= 1) {
+        rebuilt.push(line);
+        continue;
+      }
+      // SENTENCES_PER_PARA 文ずつグループ化して段落間に空行を挿入
       for (let i = 0; i < sentences.length; i += SENTENCES_PER_PARA) {
         const group = sentences.slice(i, i + SENTENCES_PER_PARA).join('').trim();
         if (group) rebuilt.push(group);
