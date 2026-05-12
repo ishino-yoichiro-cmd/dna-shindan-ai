@@ -30,8 +30,9 @@ interface SendArgs {
 export async function sendMail(args: SendArgs): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   try {
     const t = getMailer();
-    const from = `"DNA診断AI" <${fromAddress}>`;
-    const fromAddress = process.env.EMAIL_FROM_ADDRESS ?? process.env.GMAIL_USER ?? '';
+    // Gmail SMTP は認証アカウント（GMAIL_USER）以外のfromアドレスを拒否する
+    // → from は GMAIL_USER 固定、reply-to に dna@kami-ai.jp を設定
+    const from = `"DNA診断AI" <${process.env.GMAIL_USER}>`;
     const replyTo = process.env.EMAIL_REPLY_TO ?? 'dna@kami-ai.jp';
     const info = await t.sendMail({
       from,
