@@ -176,7 +176,7 @@ export async function POST(req: Request) {
   //    Sonnet 4.5 の出力上限 ~8192トークン/コールのため、章ごとに独立したAPIコール。
   //    concurrency=5 で同時5章を処理。300秒で10〜13章完了。残りは次回コールで処理。
   const pendingChapters = ALL_CHAPTERS.filter((cid) => !existingChapters[cid]);
-  const cloneUrlForReplace = `https://dna-shindan-ai.vercel.app/clone/${id}`;
+  const cloneUrlForReplace = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/clone/${id}`;
   const updatedChapters = { ...existingChapters };
   let totalCostUsd = (row.api_cost_usd as number) ?? 0;
 
@@ -218,7 +218,7 @@ export async function POST(req: Request) {
 
   // 3) 全章完了 → PDF生成 → Storage → メール送信 → status=completed
   const chapters = updatedChapters;
-  const cloneUrl = `https://dna-shindan-ai.vercel.app/clone/${id}`;
+  const cloneUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/clone/${id}`;
   const cloneSystemPrompt = buildCloneSystemPrompt(ctx, chapters);
 
   // PDF生成（タイムアウト保護120秒）
@@ -328,7 +328,7 @@ export async function POST(req: Request) {
   let mailOk = false;
   let mailError: string | undefined;
   if (row.email && row.access_token) {
-    const myPageUrl = `https://dna-shindan-ai.vercel.app/me/${id}?token=${row.access_token}`;
+    const myPageUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/me/${id}?token=${row.access_token}`;
     const r = await sendReportMail({
       to: row.email,
       firstName: row.first_name ?? undefined,

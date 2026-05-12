@@ -29,13 +29,13 @@ function getFontSrc(filename: string): string {
   // 本番環境（Vercel function）：固定 alias URL を使用
   // VERCEL_URL は deployment-specific で SSO 保護がかかる場合があるため不採用
   if (process.env.VERCEL || process.env.VERCEL_ENV) {
-    return `https://dna-shindan-ai.vercel.app/fonts/${filename}`;
+    return `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/fonts/${filename}`;
   }
   // ローカル開発・test:pdf スクリプト用：fsパス
   const local = resolveFontPath(filename);
   if (local) return local;
   // 最終fallback
-  return `https://dna-shindan-ai.vercel.app/fonts/${filename}`;
+  return `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/fonts/${filename}`;
 }
 
 export function registerFonts() {

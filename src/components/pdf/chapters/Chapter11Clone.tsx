@@ -52,7 +52,7 @@ export function Chapter11Clone({ llmContent }: ReportProps) {
   const lead = llmContent.chapter11?.leadText ?? FALLBACK_LEAD;
   const transplant = llmContent.chapter11?.transplantedItems ?? FALLBACK_TRANSPLANT;
   const cap = llmContent.chapter11?.capabilities ?? FALLBACK_CAP;
-  const url = llmContent.chapter11?.cloneUrl ?? 'https://dna-shindan-ai.vercel.app/clone/sample';
+  const url = llmContent.chapter11?.cloneUrl ?? `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/clone/sample`;
   const qr = llmContent.chapter11?.qrCodeDataUrl;
   const useCases = llmContent.chapter11?.sampleUseCases ?? FALLBACK_USECASES;
   const prompts = llmContent.chapter11?.starterPrompts ?? FALLBACK_PROMPTS;

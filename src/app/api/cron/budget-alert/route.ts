@@ -90,7 +90,7 @@ export async function GET(req: Request) {
       const usedPct = (usageRatio * 100).toFixed(1);
       const remainUsd = (budgetUsd - totalCost).toFixed(2);
       const subject = `【DNA診断AI】API予算アラート — ${threshold.label}（${usedPct}%）`;
-      const text = `Gemini API 予算アラート\n\n使用済: $${totalCost.toFixed(4)} / $${budgetUsd} (${usedPct}%)\n残り: $${remainUsd}\n\n管理画面でご確認ください: https://dna-shindan-ai.vercel.app/admin`;
+      const text = `Gemini API 予算アラート\n\n使用済: $${totalCost.toFixed(4)} / $${budgetUsd} (${usedPct}%)\n残り: $${remainUsd}\n\n管理画面でご確認ください: ${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/admin`;
       const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,sans-serif;background:#fbfaf6;color:#1f2937;padding:24px;line-height:1.7;">
   <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e0d3;border-radius:12px;padding:32px;">
@@ -113,7 +113,7 @@ export async function GET(req: Request) {
       </tr>
     </table>
     <p style="text-align:center;margin:24px 0;">
-      <a href="https://dna-shindan-ai.vercel.app/admin"
+      <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/admin"
          style="display:inline-block;background:#0a1f44;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;">
         管理画面を開く
       </a>

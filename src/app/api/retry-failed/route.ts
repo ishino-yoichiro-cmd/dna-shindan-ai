@@ -142,7 +142,7 @@ export async function POST(req: Request) {
     const resendCount = ((r.error_log ?? '') as string).split('email_resend:').length - 1;
     if (resendCount >= 3) continue;
 
-    const myPageUrl = `https://dna-shindan-ai.vercel.app/me/${r.id}?token=${r.access_token}`;
+    const myPageUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/me/${r.id}?token=${r.access_token}`;
     const result = await sendReportMail({ to: r.email, firstName: r.first_name ?? undefined, myPageUrl });
     if (result.ok) {
       await supa

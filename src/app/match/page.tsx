@@ -19,7 +19,7 @@ function MatchPageInner() {
   const [selfUrl, setSelfUrl] = useState('');
   const [selfPassword, setSelfPassword] = useState('');
   const [targetUrl, setTargetUrl] = useState(
-    targetIdFromParam ? `https://dna-shindan-ai.vercel.app/clone/${targetIdFromParam}` : ''
+    targetIdFromParam ? `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/clone/${targetIdFromParam}` : ''
   );
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -37,14 +37,14 @@ function MatchPageInner() {
       try {
         const data = JSON.parse(last) as { diagnosisId?: string };
         if (data.diagnosisId) {
-          setSelfUrl(`https://dna-shindan-ai.vercel.app/clone/${data.diagnosisId}`);
+          setSelfUrl(`${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/clone/${data.diagnosisId}`);
         }
       } catch {}
     }
     const keys = Object.keys(window.localStorage).filter((k) => k.startsWith(STORAGE_KEY_ME_PW_PREFIX));
     if (keys.length > 0) {
       const id = keys[0].replace(STORAGE_KEY_ME_PW_PREFIX, '');
-      if (!selfUrl) setSelfUrl(`https://dna-shindan-ai.vercel.app/clone/${id}`);
+      if (!selfUrl) setSelfUrl(`${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/clone/${id}`);
       const pw = window.localStorage.getItem(keys[0]) ?? '';
       setSelfPassword(pw);
     }
@@ -91,7 +91,7 @@ function MatchPageInner() {
                 type="text"
                 value={selfUrl}
                 onChange={(e) => setSelfUrl(e.target.value)}
-                placeholder="https://dna-shindan-ai.vercel.app/clone/xxxx…"
+                placeholder="https://dna.kami-ai.jp/clone/xxxx…"
                 className="w-full bg-navy-deep/60 border border-gold/30 rounded-lg px-4 py-3 text-offwhite focus:border-gold text-sm"
               />
               <p className="text-xs text-offwhite-dim/70 mt-1.5">メールで届いた分身AIボットのURLをそのまま貼り付けてください</p>
@@ -112,7 +112,7 @@ function MatchPageInner() {
                 type="text"
                 value={targetUrl}
                 onChange={(e) => setTargetUrl(e.target.value)}
-                placeholder="https://dna-shindan-ai.vercel.app/clone/xxxx…"
+                placeholder="https://dna.kami-ai.jp/clone/xxxx…"
                 className="w-full bg-navy-deep/60 border border-gold/30 rounded-lg px-4 py-3 text-offwhite focus:border-gold text-sm"
               />
               <p className="text-xs text-offwhite-dim/70 mt-1.5">相手から受け取った分身AIボットのURLをそのまま貼り付けてください</p>
