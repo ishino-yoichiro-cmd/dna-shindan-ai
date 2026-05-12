@@ -35,8 +35,17 @@ type ParseNode = React.ReactNode;
 function preprocessMarkdown(md: string): string {
   // === 前処理 -1: HTMLコメントを最初に完全除去（INTEGRATION_TAGS等が本文に漏れる致命的バグ対策）===
   let md2 = md.replace(/<!--[\s\S]*?-->/g, '');
-  // <br>タグを改行に変換（LLMがテーブルセル内で改行代わりに使う）
-  md2 = md2.replace(/<br\s*\/?>/gi, '\n');
+  // <br>タグの処理：テーブル行内（|で始まり|で終わる行）は空白に、それ以外は改行に変換
+  // MarkdownテーブルはHTMLと異なりセル内改行を認識しないため、テーブル行ではスペースで結合する
+  md2 = md2.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      // テーブル行: <br>を空白に変換して1行に保つ
+      return line.replace(/<br\s*\/?>/gi, ' ');
+    }
+    // 通常行: <br>を改行に変換
+    return line.replace(/<br\s*\/?>/gi, '\n');
+  }).join('\n');
   // その他のインラインHTMLタグを完全除去
   md2 = md2.replace(/<[^>]+>/g, '');
 
