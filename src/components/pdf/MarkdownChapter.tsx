@@ -50,6 +50,13 @@ function preprocessMarkdown(md: string): string {
   // その他のインラインHTMLタグを完全除去
   md2 = md2.replace(/<[^>]+>/g, '');
 
+  // === 前処理 -0.9: ##heading（スペースなし）を ## heading（スペースあり）に正規化 ===
+  // LLMが "##見出し" と出力するケースへの対処（パーサーは "## " を要求するため）
+  // "##" の直後が非スペース・非# であれば強制的にスペースを挿入
+  md2 = md2.replace(/^(#{1,4})([^\s#\n])/gm, '$1 $2');
+  // 行中に埋め込まれた ##heading も対処（文字の後に ## が続くケース）
+  md2 = md2.replace(/([^\n#])(#{1,4})([^\s#\n ])/g, '$1\n\n$2 $3');
+
   // === 前処理 -0.5: 禁止セクションを除去（初回プロンプト例・コピペ定型文）===
   // LLMが出力した既存DBデータにも含まれる可能性があるため、レンダリング時に除去
   const BANNED_SECTION_PATTERNS = [
@@ -226,8 +233,8 @@ function preprocessMarkdown(md: string): string {
       .replace(/ナラティブデータ/g, '記述データ')
       .replace(/ナラティブ/g, '自己記述');
 
-    // ** を全除去（孤立した ** も含めて完全排除）
-    line = line.replace(/\*\*/g, '');
+    // ★ ** は除去しない → renderInline で太字として描画する
+    // 孤立した ** はrenderInline内で安全網除去
 
     // 「30ページ」「約30ページ」などの表記を「50ページ以上」に統一
     line = line.replace(/約?30ページ[以上]?/g, '50ページ以上');
@@ -612,33 +619,57 @@ function Spacer() {
 }
 
 // インライン描画
-// ** はpreprocessMarkdownで完全除去済み。URLのみLink変換。
+// **bold** を太字(fontWeight:700)、URL をクリッカブルLinkに変換する
 function renderInline(text: string): React.ReactNode[] {
-  // ** の安全網除去（preprocessMarkdown で除去済みのはずだが念のため）
-  const cleaned = text.replace(/-\s*$/, '').replace(/\*\*/g, '');
+  // 行末ハイフン除去
+  const cleaned = text.replace(/-\s*$/, '');
 
-  // URL（https://...）を検出してクリッカブルLink化
-  const urlPattern = /(https?:\/\/[^\s　「」（）【】、。！？]+)/g;
   const result: React.ReactNode[] = [];
-  let lastIndex = 0;
   let keyIdx = 0;
-  let match: RegExpExecArray | null;
 
-  while ((match = urlPattern.exec(cleaned)) !== null) {
-    if (match.index > lastIndex) {
-      result.push(<Text key={keyIdx++}>{cleaned.slice(lastIndex, match.index)}</Text>);
+  // **bold** パターンで分割して太字/通常を振り分ける
+  // (?:[^*]|\*(?!\*))+ = ネストしない最短マッチ
+  const boldSplit = cleaned.split(/(\*\*(?:[^*]|\*(?!\*))+\*\*)/g);
+
+  for (const part of boldSplit) {
+    if (!part) continue;
+
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      // ★ 太字セグメント — fontWeight:700 でレンダリング
+      const inner = part.slice(2, -2);
+      result.push(
+        <Text key={keyIdx++} style={{ fontWeight: 700, color: colors.text }}>
+          {inner}
+        </Text>,
+      );
+    } else {
+      // 通常セグメント（孤立した ** を除去してから URL Link変換）
+      const seg = part.replace(/\*\*/g, '');
+      if (!seg) continue;
+
+      const urlPattern = /(https?:\/\/[^\s　「」（）【】、。！？]+)/g;
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+      urlPattern.lastIndex = 0;
+
+      while ((match = urlPattern.exec(seg)) !== null) {
+        if (match.index > lastIndex) {
+          result.push(<Text key={keyIdx++}>{seg.slice(lastIndex, match.index)}</Text>);
+        }
+        result.push(
+          <Link key={keyIdx++} src={match[0]} style={{ color: '#1a56cc', textDecoration: 'underline' }}>
+            {match[0]}
+          </Link>,
+        );
+        lastIndex = match.index + match[0].length;
+      }
+      if (lastIndex < seg.length) {
+        result.push(<Text key={keyIdx++}>{seg.slice(lastIndex)}</Text>);
+      }
     }
-    result.push(
-      <Link key={keyIdx++} src={match[0]} style={{ color: '#1a56cc', textDecoration: 'underline' }}>
-        {match[0]}
-      </Link>
-    );
-    lastIndex = match.index + match[0].length;
   }
-  if (lastIndex < cleaned.length) {
-    result.push(<Text key={keyIdx++}>{cleaned.slice(lastIndex)}</Text>);
-  }
-  return result.length > 0 ? result : [<Text key={0}>{cleaned}</Text>];
+
+  return result.length > 0 ? result : [<Text key={0}>{cleaned.replace(/\*\*/g, '')}</Text>];
 }
 
 function List({ items }: { items: string[] }) {

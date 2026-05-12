@@ -63,6 +63,23 @@ export function sanitizeScoreLabels(text: string): { text: string; removedCount:
 }
 
 // ============================================================================
+// 2.5. ##heading スペース欠落の自動修正
+// ============================================================================
+
+/**
+ * ##見出し（スペースなし）を ## 見出し（スペースあり）に自動修正する。
+ * LLMが ##heading と出力するとMarkdownChapterで見出しと認識されずリテラル表示になる。
+ */
+export function fixHeadingSpaces(text: string): { text: string; fixedCount: number } {
+  let count = 0;
+  const fixed = text.replace(/^(#{1,4})([^\s#\n])/gm, (_, hashes: string, nextChar: string) => {
+    count++;
+    return `${hashes} ${nextChar}`;
+  });
+  return { text: fixed, fixedCount: count };
+}
+
+// ============================================================================
 // 3. セクション番号ヘッダー検出＋除去
 // ============================================================================
 
@@ -133,6 +150,13 @@ export function runQualityGate(rawText: string, chapterId: string): QcResult {
     // chapter1 で INTEGRATION_TAGS が全く出力されていない場合も警告
     // （後工程でタグが必要なため。ただし章品質には影響しない）
   }
+
+  // ── Step 1.5: ##heading スペース欠落の自動修正 ──
+  const { text: headingSpaceFixed, fixedCount: headingSpaceFixedCount } = fixHeadingSpaces(text);
+  if (headingSpaceFixedCount > 0) {
+    issues.push(`##見出しのスペース欠落を自動修正（${headingSpaceFixedCount}件）: LLMに "## 見出し" 形式を徹底指示が必要`);
+  }
+  text = headingSpaceFixed;
 
   // ── Step 2: スコアラベルサニタイズ ──
   const { text: labelFixed, removedCount } = sanitizeScoreLabels(text);
