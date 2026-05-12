@@ -106,7 +106,12 @@ function preprocessMarkdown(md: string): string {
     return whole;
   });
   // 行中の ・ → 直前に改行を挿入（行頭の ・ はそのまま）
-  md2 = md2.replace(/([^\n・])\s+(・)/g, '$1\n$2');
+  // ※ テーブル行（|...|）は <br>→ス ペース変換で既に ・ が含まれる場合があるため除外
+  md2 = md2.split('\n').map(line => {
+    const t = line.trim();
+    if (t.startsWith('|') && t.endsWith('|')) return line; // テーブル行は保護
+    return line.replace(/([^\n・])\s+(・)/g, '$1\n$2');
+  }).join('\n');
 
   // === 前処理0.3: 文末に埋め込まれた > 引用マーカーを行頭に分離 ===
   // LLMが「テキスト。> 「引用」」のように1行に詰めるケースへの対処
