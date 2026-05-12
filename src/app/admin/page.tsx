@@ -507,22 +507,36 @@ function DailyBarChart({
   total: string;
   color?: string;
 }) {
-  const entries = Object.entries(data).reverse();
-  const max = Math.max(1, ...entries.map(([, n]) => n));
+  const entries = Object.entries(data).reverse(); // 古い順
+  const max = Math.max(...entries.map(([, n]) => n));
+  const hasData = max > 0;
+  const todayKey = new Date().toISOString().slice(0, 10);
   return (
     <div className="bg-navy-soft/40 border border-gold/20 rounded-2xl p-4">
-      <h2 className="text-sm font-bold text-gold mb-3">{title}</h2>
+      <h2 className="text-sm font-bold text-gold mb-1">{title}</h2>
+      {!hasData && (
+        <p className="text-[10px] text-offwhite-dim/40 mb-2">データ収集中</p>
+      )}
       <div className="flex items-end gap-0.5 h-20">
         {entries.map(([d, n]) => {
-          const h = (n / max) * 100;
+          const isToday = d === todayKey;
+          // データなし日は目立たない薄いバー（高さ固定8%）
+          // データあり日は max に対する割合で高さを決定
+          const h = hasData && n > 0 ? Math.max(15, (n / max) * 100) : 4;
           return (
-            <div key={d} className="flex-1 min-w-[6px] flex flex-col items-center justify-end" title={`${d}: ${formatValue(n)}`}>
-              <div className={`w-full ${n > 0 ? color : 'bg-offwhite-dim/15'}`} style={{ height: `${Math.max(2, h)}%` }} />
+            <div key={d} className="flex-1 min-w-[4px] flex flex-col items-center justify-end relative" title={`${d}: ${formatValue(n)}`}>
+              <div
+                className={`w-full rounded-sm transition-all ${n > 0 ? color : 'bg-offwhite-dim/10'} ${isToday ? 'ring-1 ring-white/40' : ''}`}
+                style={{ height: `${h}%` }}
+              />
             </div>
           );
         })}
       </div>
-      <p className="text-[10px] text-offwhite-dim/60 mt-2">{total}</p>
+      <div className="flex justify-between items-center mt-2">
+        <p className="text-[10px] text-offwhite-dim/60">{total}</p>
+        {hasData && <p className="text-[10px] text-offwhite-dim/40">最大 {formatValue(max)}</p>}
+      </div>
     </div>
   );
 }

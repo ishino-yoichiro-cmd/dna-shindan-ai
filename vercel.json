@@ -8,6 +8,10 @@
     {
       "path": "/api/retry-failed",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/budget-alert",
+      "schedule": "0 0 * * *"
     }
   ],
   "headers": [
