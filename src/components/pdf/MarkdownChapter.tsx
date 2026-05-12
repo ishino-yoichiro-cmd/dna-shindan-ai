@@ -35,12 +35,13 @@ type ParseNode = React.ReactNode;
 function preprocessMarkdown(md: string): string {
   // === 前処理 -1: HTMLコメントを最初に完全除去（INTEGRATION_TAGS等が本文に漏れる致命的バグ対策）===
   let md2 = md.replace(/<!--[\s\S]*?-->/g, '');
-  // <br>タグの処理：テーブル行内（|で始まり|で終わる行）は空白に、それ以外は改行に変換
+  // <br>タグの処理：テーブル行内（|で始まる行）は空白に、それ以外は改行に変換
   // MarkdownテーブルはHTMLと異なりセル内改行を認識しないため、テーブル行ではスペースで結合する
+  // ※ 旧バグ（\s{2,}→スペース）によりDBデータでは「テーブル行 + 後続テキスト」が1行に連結している場合があるため
+  //   末尾が|でなくても|で始まる行はテーブル行として扱う
   md2 = md2.split('\n').map(line => {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-      // テーブル行: <br>を空白に変換して1行に保つ
+    if (line.trim().startsWith('|')) {
+      // テーブル行: <br>を空白に変換して行を壊さない
       return line.replace(/<br\s*\/?>/gi, ' ');
     }
     // 通常行: <br>を改行に変換
@@ -108,8 +109,7 @@ function preprocessMarkdown(md: string): string {
   // 行中の ・ → 直前に改行を挿入（行頭の ・ はそのまま）
   // ※ テーブル行（|...|）は <br>→ス ペース変換で既に ・ が含まれる場合があるため除外
   md2 = md2.split('\n').map(line => {
-    const t = line.trim();
-    if (t.startsWith('|') && t.endsWith('|')) return line; // テーブル行は保護
+    if (line.trim().startsWith('|')) return line; // テーブル行は保護（末尾|有無問わず）
     return line.replace(/([^\n・])\s+(・)/g, '$1\n$2');
   }).join('\n');
 
