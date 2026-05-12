@@ -30,8 +30,9 @@ interface SendArgs {
 export async function sendMail(args: SendArgs): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   try {
     const t = getMailer();
-    const from = `"DNA診断AI" <${process.env.GMAIL_USER}>`;
-    const replyTo = process.env.EMAIL_REPLY_TO ?? 'mail@yoz.jp';
+    const from = `"DNA診断AI" <${fromAddress}>`;
+    const fromAddress = process.env.EMAIL_FROM_ADDRESS ?? process.env.GMAIL_USER ?? '';
+    const replyTo = process.env.EMAIL_REPLY_TO ?? 'dna@kami-ai.jp';
     const info = await t.sendMail({
       from,
       replyTo,
@@ -68,7 +69,7 @@ export async function sendReceiptMail({
 おおよそ30分〜1時間以内にお届けします。
 
 何か問題やご質問があれば、このメールに返信するか
-mail@yoz.jp までご連絡ください。
+dna@kami-ai.jp までご連絡ください。
 
 — DNA診断AI
 `;
@@ -87,7 +88,7 @@ mail@yoz.jp までご連絡ください。
       完成次第このメールアドレス宛にお送りします。
     </p>
     <p>何か問題やご質問があれば、このメールに返信するか<br>
-       <a href="mailto:mail@yoz.jp" style="color:#c9a44b;">mail@yoz.jp</a> までご連絡ください。</p>
+       <a href="mailto:dna@kami-ai.jp" style="color:#c9a44b;">dna@kami-ai.jp</a> までご連絡ください。</p>
     <p style="color:#6b7280;font-size:12px;margin-top:32px;">— DNA診断AI</p>
   </div>
 </body></html>`;
@@ -126,7 +127,7 @@ ${myPageUrl}
 ブックマーク推奨です。
 
 — DNA診断AI
-mail@yoz.jp
+dna@kami-ai.jp
 `;
   const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"></head>
 <body style="font-family:'Noto Sans JP',-apple-system,sans-serif;background:#fbfaf6;color:#1f2937;padding:24px;line-height:1.7;">
@@ -148,7 +149,7 @@ mail@yoz.jp
     </p>
     <p style="color:#6b7280;font-size:12px;margin-top:24px;">
       このリンクは本人専用です。第三者に共有しないでください。<br>
-      お問い合わせ：<a href="mailto:mail@yoz.jp" style="color:#c9a44b;">mail@yoz.jp</a>
+      お問い合わせ：<a href="mailto:dna@kami-ai.jp" style="color:#c9a44b;">dna@kami-ai.jp</a>
     </p>
   </div>
 </body></html>`;

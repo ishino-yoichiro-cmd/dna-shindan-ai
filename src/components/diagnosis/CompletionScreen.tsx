@@ -76,7 +76,7 @@ export function CompletionScreen({ status, email, errorMessage }: Props) {
 
               <p className="text-xs text-offwhite-dim leading-relaxed">
                 状況確認・お問い合わせ：
-                <a href="mailto:mail@yoz.jp" className="text-gold underline ml-1">mail@yoz.jp</a>
+                <a href="mailto:dna@kami-ai.jp" className="text-gold underline ml-1">dna@kami-ai.jp</a>
               </p>
             </div>
           )}
@@ -91,7 +91,7 @@ export function CompletionScreen({ status, email, errorMessage }: Props) {
               )}
               <p className="text-xs text-offwhite-dim leading-relaxed">
                 ブラウザのデータは保持されています。
-                <a href="mailto:mail@yoz.jp" className="text-gold underline">mail@yoz.jp</a>
+                <a href="mailto:dna@kami-ai.jp" className="text-gold underline">dna@kami-ai.jp</a>
                 までご連絡ください。
               </p>
             </div>

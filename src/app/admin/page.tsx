@@ -245,49 +245,7 @@ export default function AdminPage() {
           </div>
         </header>
 
-        {/* APIコスト・予算アラート */}
-        <section className={`rounded-2xl border p-5 ${stats.summary.alert ? 'border-red-500/60 bg-red-900/20' : 'border-gold/30 bg-navy-soft/40'}`}>
-          <div className="flex flex-wrap justify-between items-baseline gap-3">
-            <h2 className="text-lg font-bold text-gold">API使用量・予算</h2>
-            {stats.summary.alert && (
-              <span className="text-red-300 text-sm font-bold">⚠️ {stats.summary.alertThresholdPercent}%超過 — 追加チャージ推奨</span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
-            <KPI label="累計コスト" value={`$${stats.summary.totalCost.toFixed(2)}`} />
-            <KPI label="予算上限" value={`$${stats.summary.apiBudgetUsd}`} />
-            <KPI label="残量" value={`$${stats.summary.apiRemainingUsd}`} />
-            <KPI label="使用率" value={`${stats.summary.apiUsagePercent}%`} />
-          </div>
-          <div className="mt-3 h-2 rounded-full bg-offwhite-dim/15 overflow-hidden">
-            <div
-              className={`h-full ${stats.summary.alert ? 'bg-red-400' : 'bg-gradient-to-r from-gold to-gold-light'}`}
-              style={{ width: `${Math.min(100, stats.summary.apiUsagePercent)}%` }}
-            />
-          </div>
-          <p className="text-xs text-offwhite-dim/70 mt-2">
-            予算上限は env <code>ANTHROPIC_BUDGET_USD</code>（既定$200）。Anthropic Console でチャージした額に合わせて変更可。
-          </p>
-        </section>
-
-        {/* 全体KPI */}
-        <section className="bg-navy-soft/40 border border-gold/20 rounded-2xl p-5">
-          <h2 className="text-lg font-bold text-gold mb-3">サマリ</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <KPI label="総診断数" value={stats.summary.total.toString()} />
-            <KPI label="累計DL回数" value={stats.summary.totalDownloads.toString()} />
-            <KPI label="累計チャット" value={stats.summary.totalChats.toString()} />
-            <KPI label="平均コスト/件" value={stats.summary.total > 0 ? `$${(stats.summary.totalCost / stats.summary.total).toFixed(3)}` : '—'} />
-          </div>
-        </section>
-
-        {/* ステータス・関係性 */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <BreakdownCard title="ステータス内訳" data={stats.statusBreakdown} />
-          <BreakdownCard title="関係性タグ内訳" data={stats.relationBreakdown} />
-        </section>
-
-        {/* 直近30日の各種グラフ */}
+        {/* 直近30日グラフ — トップ */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <DailyBarChart
             title="新規登録（日次）"
@@ -310,6 +268,30 @@ export default function AdminPage() {
             color="bg-emerald-400"
           />
         </section>
+
+        {/* コンパクトKPI — 1行 */}
+        <section className={`flex flex-wrap gap-x-6 gap-y-1 items-center px-4 py-3 rounded-xl border text-sm ${stats.summary.alert ? 'border-red-500/50 bg-red-900/10' : 'border-gold/20 bg-navy-soft/30'}`}>
+          <MiniKPI label="総数" value={`${stats.summary.total}件`} />
+          <MiniKPI label="完了" value={`${stats.statusBreakdown['completed'] ?? 0}件`} accent />
+          <MiniKPI label="未完了" value={`${stats.summary.total - (stats.statusBreakdown['completed'] ?? 0)}件`} />
+          <MiniKPI label="DL" value={`${stats.summary.totalDownloads}回`} />
+          <MiniKPI label="チャット" value={`${stats.summary.totalChats}回`} />
+          <span className="text-offwhite-dim/30 hidden sm:inline">|</span>
+          <MiniKPI label="API使用" value={`$${stats.summary.totalCost.toFixed(2)} / $${stats.summary.apiBudgetUsd} (${stats.summary.apiUsagePercent}%)`} warn={stats.summary.alert} />
+          {stats.summary.alert && <span className="text-red-300 text-xs font-bold">{stats.summary.alertThresholdPercent}%超過</span>}
+        </section>
+
+        {/* 関係性タグ — 人数のみ */}
+        {Object.keys(stats.relationBreakdown).length > 0 && (
+          <section className="flex flex-wrap gap-2 px-4 py-2 rounded-xl border border-gold/15 bg-navy-soft/20">
+            <span className="text-[11px] text-offwhite-dim/50 self-center mr-1">関係性</span>
+            {Object.entries(stats.relationBreakdown).map(([tag, cnt]) => (
+              <span key={tag} className="text-[11px] text-offwhite-dim bg-navy-deep/40 border border-offwhite-dim/15 rounded px-2 py-0.5">
+                {tag} <span className="text-gold font-bold">{cnt}</span>
+              </span>
+            ))}
+          </section>
+        )}
 
         {/* 診断リスト＋詳細 */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -559,25 +541,11 @@ function KV({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BreakdownCard({ title, data }: { title: string; data: Record<string, number> }) {
-  const total = Object.values(data).reduce((a, b) => a + b, 0);
+function MiniKPI({ label, value, accent, warn }: { label: string; value: string; accent?: boolean; warn?: boolean }) {
   return (
-    <div className="bg-navy-soft/40 border border-gold/20 rounded-2xl p-5">
-      <h2 className="text-base font-bold text-gold mb-3">{title}</h2>
-      <div className="space-y-1.5">
-        {Object.entries(data).map(([k, v]) => {
-          const pct = total > 0 ? Math.round((v / total) * 100) : 0;
-          return (
-            <div key={k} className="flex items-center gap-2 text-xs">
-              <span className="w-32 truncate text-offwhite-dim">{k}</span>
-              <div className="flex-1 h-1.5 bg-offwhite-dim/15 rounded-full overflow-hidden">
-                <div className="h-full bg-gold" style={{ width: `${pct}%` }} />
-              </div>
-              <span className="w-10 text-right text-offwhite font-bold">{v}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <span className="text-sm">
+      <span className="text-offwhite-dim/60 mr-1">{label}</span>
+      <span className={`font-bold ${warn ? 'text-red-300' : accent ? 'text-gold' : 'text-offwhite'}`}>{value}</span>
+    </span>
   );
 }

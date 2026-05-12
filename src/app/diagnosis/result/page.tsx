@@ -88,7 +88,7 @@ function ResultContent() {
                 ページを再読み込み
               </button>
               してください。解決しない場合は
-              <a href="mailto:mail@yoz.jp" className="text-gold underline ml-1">mail@yoz.jp</a>
+              <a href="mailto:dna@kami-ai.jp" className="text-gold underline ml-1">dna@kami-ai.jp</a>
               にご連絡ください。
             </p>
           </Card>
@@ -148,7 +148,7 @@ function ResultContent() {
 
         <p className="text-xs text-offwhite-dim/60 text-center pt-2">
           お問い合わせ：
-          <a href="mailto:mail@yoz.jp" className="text-gold underline">mail@yoz.jp</a>
+          <a href="mailto:dna@kami-ai.jp" className="text-gold underline">dna@kami-ai.jp</a>
         </p>
       </div>
     </main>
