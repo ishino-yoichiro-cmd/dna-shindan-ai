@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     // diagnosisId の存在検証（スパム防止）
     const supabase = getSupabaseServiceRoleClient();
     const { data: diagnosisRow } = await supabase
-      .from('diagnoses')
+      .from('dna_diagnoses')
       .select('id')
       .eq('id', diagnosisId)
       .maybeSingle();
