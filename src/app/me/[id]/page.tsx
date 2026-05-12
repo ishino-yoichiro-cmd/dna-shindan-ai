@@ -437,7 +437,7 @@ export default function MyPage({ params }: Props) {
         {/* 感想フォーム */}
         {reportReady && (
           <Card>
-            <h2 className="text-lg font-bold text-gold mb-3">診断レポート・分身AI・分身AIボットについての感想を教えてください</h2>
+            <h2 className="text-lg font-bold text-gold mb-3">診断レポート・分身AI・分身AIボットについての感想をお聞かせください</h2>
             {feedbackSent ? (
               <div className="space-y-3">
                 <p className="text-sm text-offwhite leading-relaxed">
