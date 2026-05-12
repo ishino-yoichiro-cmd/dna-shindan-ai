@@ -75,19 +75,25 @@ export default function AdminPage() {
   const handleLogin = async (pw?: string) => {
     const usePw = pw ?? pass;
     if (!usePw) return;
-    const r = await fetch(`/api/admin/stats?pass=${encodeURIComponent(usePw)}`);
-    if (r.ok) {
-      setStats(await r.json());
-      setAuthed(true);
-      // セッション維持のためlocalStorageに保存
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(STORAGE_KEY_ADMIN_PASS, usePw);
+    try {
+      const r = await fetch(`/api/admin/stats?pass=${encodeURIComponent(usePw)}`);
+      if (r.ok) {
+        setStats(await r.json());
+        setAuthed(true);
+        // セッション維持のためlocalStorageに保存
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(STORAGE_KEY_ADMIN_PASS, usePw);
+        }
+      } else if (r.status === 401 || r.status === 403) {
+        // パスワード不一致のときのみ削除（ネットワークエラー等では削除しない）
+        setLoginError('パスワードが違います');
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem(STORAGE_KEY_ADMIN_PASS);
+        }
       }
-    } else {
-      setLoginError('パスワードが違います');
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(STORAGE_KEY_ADMIN_PASS);
-      }
+      // それ以外（5xx等）は何もしない → 次回再訪時に再試行
+    } catch {
+      // ネットワークエラー時は localStorage を消さない → 次回訪問で再試行
     }
   };
 
@@ -307,7 +313,8 @@ export default function AdminPage() {
 
         {/* 診断リスト＋詳細 */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-1 space-y-2 max-h-[80vh] overflow-y-auto pr-1">
+          {/* モバイル: 詳細表示中はリスト非表示 / デスクトップ: 常に表示 */}
+          <div className={`md:col-span-1 space-y-2 max-h-[80vh] overflow-y-auto pr-1 ${selected !== null ? 'hidden md:block' : 'block'}`}>
             {stats.rows.map((r, i) => (
               <div key={r.id} className={`relative rounded-lg border ${r.hidden_at ? 'border-offwhite-dim/20 opacity-50' : selected === i ? 'border-gold bg-gold/10' : 'border-gold/20 bg-navy-soft/40'}`}>
                 <button
@@ -339,10 +346,18 @@ export default function AdminPage() {
             ))}
           </div>
 
-          <div className="md:col-span-2 bg-navy-soft/40 border border-gold/20 rounded-xl p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+          {/* モバイル: 詳細選択時のみ表示 / デスクトップ: 常に表示 */}
+          <div className={`md:col-span-2 bg-navy-soft/40 border border-gold/20 rounded-xl p-5 space-y-4 max-h-[80vh] overflow-y-auto ${selected !== null ? 'block' : 'hidden md:block'}`}>
             {sel ? (
               <>
                 <div className="border-b border-gold/20 pb-3 space-y-2">
+                  {/* モバイル専用「← 戻る」ボタン */}
+                  <button
+                    className="md:hidden text-xs text-offwhite-dim border border-offwhite-dim/30 px-3 py-1 rounded-lg mb-2"
+                    onClick={() => setSelected(null)}
+                  >
+                    ← 一覧に戻る
+                  </button>
                   <div className="flex flex-wrap gap-2 items-baseline">
                     {/* admin は YO 本人専用画面なので本名OK（公開URLは clone_display_name のまま） */}
                     <h2 className="text-lg font-bold text-gold">{[sel.last_name, sel.first_name].filter(Boolean).join(' ') || sel.clone_display_name || '(no-name)'}</h2>
