@@ -35,6 +35,10 @@ type ParseNode = React.ReactNode;
 function preprocessMarkdown(md: string): string {
   // === 前処理 -1: HTMLコメントを最初に完全除去（INTEGRATION_TAGS等が本文に漏れる致命的バグ対策）===
   let md2 = md.replace(/<!--[\s\S]*?-->/g, '');
+  // <br>タグを改行に変換（LLMがテーブルセル内で改行代わりに使う）
+  md2 = md2.replace(/<br\s*\/?>/gi, '\n');
+  // その他のインラインHTMLタグを完全除去
+  md2 = md2.replace(/<[^>]+>/g, '');
 
   // === 前処理 -0.5: 禁止セクションを除去（初回プロンプト例・コピペ定型文）===
   // LLMが出力した既存DBデータにも含まれる可能性があるため、レンダリング時に除去
@@ -94,6 +98,11 @@ function preprocessMarkdown(md: string): string {
   });
   // 行中の ・ → 直前に改行を挿入（行頭の ・ はそのまま）
   md2 = md2.replace(/([^\n・])\s+(・)/g, '$1\n$2');
+
+  // === 前処理0.3: 文末に埋め込まれた > 引用マーカーを行頭に分離 ===
+  // LLMが「テキスト。> 「引用」」のように1行に詰めるケースへの対処
+  // parseMarkdown は > を行頭でしか認識しないため、ここで分離してから渡す
+  md2 = md2.replace(/([。！？」）])\s*>\s+/g, '$1\n\n> ');
 
   // === 前処理0.5: 長い段落行を文単位で2文ずつ段落化 ===
   // LLMが改行なしで複数文を1行に出力するケース（全文字が1〜数行の場合）の対策
@@ -667,6 +676,7 @@ function Quote({ text }: { text: string }) {
   if (lines.length === 0) return null;
   return (
     <View
+      wrap={false}
       style={{
         backgroundColor: colors.quoteBg,
         borderLeftWidth: 4,
@@ -680,6 +690,7 @@ function Quote({ text }: { text: string }) {
         marginTop: 12,
         marginBottom: 14,
         borderRadius: 3,
+        flexShrink: 0,
       }}
     >
       <Text style={{ fontSize: 8, color: colors.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 6 }}>
