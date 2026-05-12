@@ -45,14 +45,29 @@ export async function GET(req: NextRequest) {
     .select('id, first_name, last_name, email, status, relationship_tag, download_count, chat_count, api_cost_usd, created_at, last_downloaded_at, last_chat_at, completed_at, select_answers, narrative_answers, style_sample, scores, celestial_results, clone_display_name, report_text, access_token, hidden_at')
     .order('created_at', { ascending: false });
 
+  // 感想数を一括取得（N+1回避）
+  const { data: feedbackCounts } = await supa
+    .from('dna_feedbacks')
+    .select('diagnosis_id');
+
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   // YO 指示: admin は YO 本人専用 UI なので本名表示OK。sanitize は公開向けでのみ適用。
   // 万が一 admin URL が漏れた時のため、`?sanitize=1` クエリで明示的に sanitize 可能に。
   const shouldSanitize = url.searchParams.get('sanitize') === '1';
   // ?show_hidden=1 で非表示レコードも表示（デフォルト: hidden_at IS NULL のみ）
   const showHidden = url.searchParams.get('show_hidden') === '1';
+
+  // 感想数を diagnosis_id ごとにカウント
+  const feedbackCountMap: Record<string, number> = {};
+  for (const f of feedbackCounts ?? []) {
+    feedbackCountMap[f.diagnosis_id] = (feedbackCountMap[f.diagnosis_id] ?? 0) + 1;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allRows = ((data ?? []) as any[]).map((r) => (shouldSanitize ? sanitizeRow(r) : r));
+  const allRows = ((data ?? []) as any[]).map((r) => ({
+    ...(shouldSanitize ? sanitizeRow(r) : r),
+    feedback_count: feedbackCountMap[r.id] ?? 0,
+  }));
   const rows = showHidden ? allRows : allRows.filter((r) => !r.hidden_at);
 
   const totalCost = rows.reduce((s, r) => s + (Number(r.api_cost_usd) || 0), 0);

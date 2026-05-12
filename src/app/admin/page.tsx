@@ -32,6 +32,20 @@ interface SubmissionRow {
   report_text?: Record<string, string>;
   access_token?: string | null;
   hidden_at?: string | null;
+  feedback_count?: number;
+}
+
+interface FeedbackRow {
+  id: string;
+  diagnosis_id: string;
+  message: string;
+  created_at: string;
+  dna_diagnoses?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    clone_display_name?: string | null;
+    email?: string | null;
+  } | null;
 }
 
 interface QuestionDef {
@@ -71,6 +85,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [hidingId, setHidingId] = useState<string | null>(null);
+  const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
+  const [showFeedbacks, setShowFeedbacks] = useState(false);
 
   const handleLogin = async (pw?: string) => {
     const usePw = pw ?? pass;
@@ -116,6 +132,11 @@ export default function AdminPage() {
     if (!authed) return;
     void loadStats();
     void loadQuestions();
+    void loadFeedbacks();
+    // 60秒ごとに自動更新
+    const timer = setInterval(() => { void loadStats(); void loadFeedbacks(); }, 60_000);
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
   const loadStats = async (forceShowHidden?: boolean) => {
@@ -151,6 +172,16 @@ export default function AdminPage() {
     setShowHidden(next);
     await loadStats(next);
   };
+  const loadFeedbacks = async () => {
+    try {
+      const r = await fetch(`/api/admin/feedbacks?pass=${encodeURIComponent(pass)}`);
+      if (r.ok) {
+        const d = await r.json();
+        if (Array.isArray(d.feedbacks)) setFeedbacks(d.feedbacks);
+      }
+    } catch {}
+  };
+
   const loadQuestions = async () => {
     try {
       const r = await fetch('/api/questions');
@@ -195,16 +226,18 @@ export default function AdminPage() {
   const qMap: Record<string, QuestionDef> = {};
   for (const q of questions) qMap[q.id] = q;
 
-  // 直近30日の日次集計（クライアント側でrows から導出）
+  // 直近14日の日次集計（14日に絞ることでバーを太く・視認性向上）
   const dailyApiCost: Record<string, number> = {};
   const dailyDownloads: Record<string, number> = {};
+  const dailyRegs14: Record<string, number> = {};
   const now = new Date();
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 14; i++) {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
     const key = d.toISOString().slice(0, 10);
     dailyApiCost[key] = 0;
     dailyDownloads[key] = 0;
+    dailyRegs14[key] = stats.dailyRegistrations[key] ?? 0;
   }
   for (const r of stats.rows) {
     if (r.completed_at) {
@@ -248,10 +281,10 @@ export default function AdminPage() {
         {/* 直近30日グラフ — トップ */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <DailyBarChart
-            title="新規登録（日次）"
-            data={stats.dailyRegistrations}
+            title="新規登録（14日）"
+            data={dailyRegs14}
             formatValue={(n) => `${n}件`}
-            total={`${Object.values(stats.dailyRegistrations).reduce((a, b) => a + b, 0)}件 / 30日`}
+            total={`${Object.values(dailyRegs14).reduce((a, b) => a + b, 0)}件 / 14日`}
           />
           <DailyBarChart
             title="PDFダウンロード（日次）"
@@ -303,9 +336,12 @@ export default function AdminPage() {
                   onClick={() => setSelected(i)}
                   className="w-full text-left p-3"
                 >
-                  <p className="text-sm text-offwhite font-bold pr-8">
-                    {[r.last_name, r.first_name].filter(Boolean).join(' ') || r.clone_display_name || '(no-name)'}
-                    {r.hidden_at && <span className="ml-2 text-[10px] text-offwhite-dim/50 font-normal">非表示</span>}
+                  <p className="text-sm text-offwhite font-bold pr-8 flex items-center gap-2">
+                    <span>{[r.last_name, r.first_name].filter(Boolean).join(' ') || r.clone_display_name || '(no-name)'}</span>
+                    {r.hidden_at && <span className="text-[10px] text-offwhite-dim/50 font-normal">非表示</span>}
+                    {(r.feedback_count ?? 0) > 0 && (
+                      <span className="text-[10px] bg-gold/20 text-gold border border-gold/40 rounded px-1 font-bold">感想{r.feedback_count}</span>
+                    )}
                   </p>
                   <p className="text-xs text-offwhite-dim">{r.email}</p>
                   <div className="flex flex-wrap gap-2 text-[10px] text-offwhite-dim/60 mt-1">
@@ -429,6 +465,25 @@ export default function AdminPage() {
                   </div>
                 </details>
 
+                {/* 感想 */}
+                {(() => {
+                  const selFeedbacks = feedbacks.filter(f => f.diagnosis_id === sel.id);
+                  if (selFeedbacks.length === 0) return null;
+                  return (
+                    <details open className="bg-navy-deep/40 border border-gold/30 rounded-lg p-3">
+                      <summary className="cursor-pointer text-sm font-bold text-gold">感想（{selFeedbacks.length}件）</summary>
+                      <div className="mt-3 space-y-3">
+                        {selFeedbacks.map(f => (
+                          <div key={f.id} className="bg-navy-deep/60 rounded p-3 border border-offwhite-dim/10">
+                            <p className="text-[10px] text-offwhite-dim/50 mb-1">{f.created_at?.slice(0,16).replace('T',' ')}</p>
+                            <p className="text-sm text-offwhite whitespace-pre-wrap leading-relaxed">{f.message}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  );
+                })()}
+
                 {/* 文体 */}
                 {sel.style_sample && (
                   <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
@@ -471,6 +526,39 @@ export default function AdminPage() {
             )}
           </div>
         </section>
+
+        {/* 感想一覧（全件） */}
+        <section className="border border-gold/20 rounded-2xl overflow-hidden">
+          <button
+            onClick={() => setShowFeedbacks(v => !v)}
+            className="w-full flex items-center justify-between px-5 py-3 bg-navy-soft/40 hover:bg-navy-soft/60 text-left"
+          >
+            <span className="text-sm font-bold text-gold">
+              感想一覧 <span className="ml-2 text-offwhite-dim/60 font-normal">{feedbacks.length}件</span>
+            </span>
+            <span className="text-offwhite-dim/50 text-xs">{showFeedbacks ? '閉じる' : '開く'}</span>
+          </button>
+          {showFeedbacks && (
+            <div className="divide-y divide-gold/10">
+              {feedbacks.length === 0 ? (
+                <p className="px-5 py-8 text-sm text-offwhite-dim/50 text-center">まだ感想はありません</p>
+              ) : feedbacks.map(f => {
+                const diag = f.dna_diagnoses;
+                const name = [diag?.last_name, diag?.first_name].filter(Boolean).join(' ') || diag?.clone_display_name || '(no-name)';
+                return (
+                  <div key={f.id} className="px-5 py-4 bg-navy-soft/20 hover:bg-navy-soft/40">
+                    <div className="flex flex-wrap items-baseline gap-3 mb-2">
+                      <span className="text-sm font-bold text-offwhite">{name}</span>
+                      <span className="text-[11px] text-offwhite-dim/50">{diag?.email}</span>
+                      <span className="text-[11px] text-offwhite-dim/40 ml-auto">{f.created_at?.slice(0,16).replace('T',' ')}</span>
+                    </div>
+                    <p className="text-sm text-offwhite-dim leading-relaxed whitespace-pre-wrap">{f.message}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );
@@ -499,16 +587,21 @@ function DailyBarChart({
       {!hasData && (
         <p className="text-[10px] text-offwhite-dim/40 mb-2">データ収集中</p>
       )}
-      <div className="flex items-end gap-0.5 h-20">
+      <div className="flex items-end gap-[2px] h-24">
         {entries.map(([d, n]) => {
           const isToday = d === todayKey;
-          // データなし日は目立たない薄いバー（高さ固定8%）
-          // データあり日は max に対する割合で高さを決定
-          const h = hasData && n > 0 ? Math.max(15, (n / max) * 100) : 4;
+          // ゼロ日は1pxのみ表示（バー存在感なし）
+          // データあり日は max 対比で最小20%確保
+          const h = hasData && n > 0 ? Math.max(20, (n / max) * 100) : 1;
           return (
-            <div key={d} className="flex-1 min-w-[4px] flex flex-col items-center justify-end relative" title={`${d}: ${formatValue(n)}`}>
+            <div key={d} className="flex-1 flex flex-col items-center justify-end relative group" title={`${d.slice(5)}: ${formatValue(n)}`}>
+              {n > 0 && (
+                <span className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-navy-deep border border-gold/30 text-gold text-[9px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+                  {d.slice(5)} {formatValue(n)}
+                </span>
+              )}
               <div
-                className={`w-full rounded-sm transition-all ${n > 0 ? color : 'bg-offwhite-dim/10'} ${isToday ? 'ring-1 ring-white/40' : ''}`}
+                className={`w-full rounded-sm ${n > 0 ? color : 'bg-offwhite-dim/5'} ${isToday && n > 0 ? 'ring-1 ring-white/50' : ''}`}
                 style={{ height: `${h}%` }}
               />
             </div>
