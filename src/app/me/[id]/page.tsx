@@ -437,18 +437,27 @@ export default function MyPage({ params }: Props) {
         {/* 感想フォーム */}
         {reportReady && (
           <Card>
-            <h2 className="text-lg font-bold text-gold mb-3">分身AIを作ってみた感想を教えてください</h2>
+            <h2 className="text-lg font-bold text-gold mb-3">診断レポート・分身AI・分身AIボットについての感想を教えてください</h2>
             {feedbackSent ? (
-              <p className="text-sm text-offwhite leading-relaxed">
-                貴重なご意見ありがとうございます。今後の開発に活かさせていただきます。
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm text-offwhite leading-relaxed">
+                  貴重なご意見ありがとうございます。今後の開発に活かさせていただきます。
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setFeedbackSent(false); setFeedback(''); }}
+                  className="w-full border border-gold/40 text-gold py-2 rounded-lg text-sm hover:bg-gold/10"
+                >
+                  再投稿する
+                </button>
+              </div>
             ) : (
               <div className="space-y-3">
                 <textarea
                   value={feedback}
                   onChange={(e) => setFeedback(e.target.value)}
                   rows={4}
-                  placeholder="使ってみた感想、気づいたこと、改善のご提案など、何でもお気軽にどうぞ。"
+                  placeholder="診断レポート・分身AI・分身AIボットの使い心地、気づいたこと、改善のご提案など、何でもお気軽にどうぞ。"
                   className="w-full bg-navy-deep/60 border border-gold/30 rounded-lg px-4 py-3 text-sm text-offwhite placeholder-offwhite-dim/40 focus:border-gold resize-none"
                 />
                 {feedbackError && <p className="text-xs text-red-300">{feedbackError}</p>}
