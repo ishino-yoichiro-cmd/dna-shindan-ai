@@ -76,6 +76,24 @@ function preprocessMarkdown(md: string): string {
   }
   md2 = filteredLines.join('\n');
 
+  // === 前処理-0.3: テーブル行の末尾後続テキストを分離 ===
+  // 旧バグ（\s{2,}→スペース）により「テーブル行|後続テキスト」が1行に連結しているDBデータへの対処
+  // テーブル行が最後の|の後にテキストを持つ場合、その部分を次の段落として分離する
+  md2 = md2.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|')) return line;
+    const lastPipeIdx = trimmed.lastIndexOf('|');
+    if (lastPipeIdx === trimmed.length - 1) return line; // 末尾|で終わる正常行
+    const tablePart = trimmed.slice(0, lastPipeIdx + 1);
+    const remainder = trimmed.slice(lastPipeIdx + 1).trim();
+    if (!remainder) return line;
+    // テーブル部分に | が2つ以上ある（有効なテーブル行）かチェック
+    if ((tablePart.match(/\|/g) ?? []).length >= 2) {
+      return tablePart + '\n\n' + remainder;
+    }
+    return line;
+  }).join('\n');
+
   // === 前処理0: 行中に埋め込まれた見出し・箇条書きを別行に分割 ===
   // LLMが "テキスト ### 見出し テキスト ・箇条" のように1行に詰め込む問題への対処
   // 行中の ## / ### → 直前に空行+改行を挿入（行頭の場合は除外）
