@@ -71,7 +71,9 @@ for pg_num in body_pages:
     blocks = page.get_text("blocks")
     # フッター・ヘッダー行を除くテキストブロック
     content_blocks = [b for b in blocks if b[4].strip() and len(b[4].strip()) > 5]
-    if len(content_blocks) < MIN_BLOCKS_PER_PAGE:
+    # 章末ページ（テキスト合計300字未満）は false positive なのでスキップ
+    total_chars = sum(len(b[4].strip()) for b in content_blocks)
+    if len(content_blocks) < MIN_BLOCKS_PER_PAGE and total_chars >= 300:
         low_density_pages.append((pg_num+1, len(content_blocks)))
 
 if low_density_pages:
