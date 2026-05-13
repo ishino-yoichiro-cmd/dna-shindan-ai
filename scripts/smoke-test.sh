@@ -66,6 +66,36 @@ echo "▶ Admin API"
 check "/api/admin/stats (Bearer auth)" "$BASE_URL/api/admin/stats" "401"  # Bearer必須
 
 echo ""
+echo "▶ 静的アセット欠損チェック（フォント・OGP）"
+check "フォント NotoSansJP-Regular" "$BASE_URL/fonts/NotoSansJP-Regular.ttf" "200"
+check "フォント NotoSansJP-Bold"    "$BASE_URL/fonts/NotoSansJP-Bold.ttf"    "200"
+check "OGP画像 og-image.png"        "$BASE_URL/og-image.png"                 "200"
+check "robots.txt"                   "$BASE_URL/robots.txt"                   "200"
+
+echo ""
+echo "▶ データ整合性チェック（completed + PDF NULL）"
+if [[ -n "${ADMIN_PASSWORD:-}" ]]; then
+  INTEGRITY_RESP=$(curl -s -H "Authorization: Bearer ${ADMIN_PASSWORD}" "${BASE_URL}/api/cron/data-integrity" \
+    -H "Authorization: Bearer ${CRON_SECRET:-}" --max-time 30 2>/dev/null || echo "")
+  PDF_NULL_COUNT=$(echo "$INTEGRITY_RESP" | python3 -c "
+import sys, json
+try:
+  d = json.load(sys.stdin)
+  print(d.get('issues', '?'))
+except: print('parse_error')
+" 2>/dev/null || echo "?")
+  if [[ "$PDF_NULL_COUNT" == "0" ]]; then
+    echo "  ✅ データ整合性 → 異常なし"
+    PASS=$((PASS+1))
+  else
+    echo "  ❌ データ整合性 → ${PDF_NULL_COUNT}件の異常検知"
+    FAIL=$((FAIL+1))
+  fi
+else
+  echo "  ⚠️  データ整合性チェック: ADMIN_PASSWORD 未設定（スキップ）"
+fi
+
+echo ""
 echo "▶ PDF ダウンロード E2E（最重要）"
 # 直近のcompleted+pdf_storage_pathありユーザーをadmin APIから取得してDLテスト
 ADMIN_PASS="${ADMIN_PASSWORD:-dna-admin-2026}"

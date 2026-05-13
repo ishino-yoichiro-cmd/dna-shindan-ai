@@ -1,0 +1,58 @@
+name: デプロイ後 Smoke テスト
+
+on:
+  # Vercel が GitHub deployment イベントを発行する（Vercel GitHub Integration 有効時）
+  deployment_status:
+  # 手動実行
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'テスト対象URL（空=本番URL）'
+        required: false
+        default: 'https://dna.kami-ai.jp'
+
+jobs:
+  smoke:
+    # deployment_status で production デプロイが success になった時のみ実行
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Production')
+    name: Smoke テスト（本番）
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: テスト対象URL の決定
+        id: url
+        run: |
+          if [[ "${{ github.event_name }}" == "deployment_status" ]]; then
+            echo "url=${{ github.event.deployment_status.target_url }}" >> $GITHUB_OUTPUT
+          else
+            echo "url=${{ github.event.inputs.base_url || 'https://dna.kami-ai.jp' }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Smoke テスト実行
+        run: |
+          bash scripts/smoke-test.sh "${{ steps.url.outputs.url }}"
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+      - name: Smoke 失敗時にメール通知
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.warning('Smoke テスト失敗。本番 URL: ${{ steps.url.outputs.url }}');
+            // GitHub Issue を自動作成
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 本番 Smoke テスト失敗 — ${new Date().toISOString().slice(0,10)}`,
+              body: `## デプロイ後 Smoke テストが失敗しました\n\n- URL: ${{ steps.url.outputs.url }}\n- コミット: ${context.sha}\n- 実行: ${context.runUrl}\n\n管理画面で確認してください: https://dna.kami-ai.jp/admin`,
+              labels: ['bug', 'production', 'smoke-failure'],
+            });

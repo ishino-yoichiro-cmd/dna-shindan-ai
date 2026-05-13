@@ -40,13 +40,15 @@ jobs:
       - name: Playwright ブラウザインストール
         run: npx playwright install --with-deps chromium
 
-      - name: E2E テスト実行
+      - name: E2E テスト実行（me-page + customer-journey）
         run: npx playwright test --project=chromium-desktop
         env:
           E2E_BASE_URL: ${{ env.E2E_BASE_URL }}
           # スモークフィクスチャ（/me・/clone テスト用）— GitHub Secrets に登録必須
           E2E_FIXTURE_ID: ${{ secrets.E2E_FIXTURE_ID }}
           E2E_FIXTURE_PASSWORD: ${{ secrets.E2E_FIXTURE_PASSWORD }}
+          E2E_FIXTURE_ACCESS_TOKEN: ${{ secrets.E2E_FIXTURE_ACCESS_TOKEN }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           CI: true
 
       - name: テストレポートをアーティファクトに保存

@@ -62,6 +62,15 @@ export async function POST(req: Request) {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // ── heartbeat 記録（process-monitor cronの死活確認用） ─────────────────────
+  // process-pending が動くたびに timestamp を dna_system_config に upsert する。
+  // /api/cron/process-monitor が 10分以上更新なしを検知したらアラートを送る。
+  supa.from('dna_system_config').upsert({
+    key: 'process_pending_heartbeat',
+    value: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).then(() => {}).catch(() => {}); // 非同期・失敗しても処理続行
+
   // 1) 楽観的ロックで1件をアトミックに取得（race condition防止）
   //
   //    旧実装: SELECT(received) → UPDATE(processing) の2ステップは非アトミック。
