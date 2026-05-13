@@ -490,10 +490,30 @@ export default function MyPage({ params }: Props) {
             )}
 
             {feedbackSent ? (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <p className="text-sm text-offwhite leading-relaxed">
-                  貴重なご意見ありがとうございます。今後の開発に活かさせていただきます。
+                  貴重なご意見ありがとうございます。<br />
+                  今後の開発に活かさせていただきます。
                 </p>
+                <div className="bg-gold/10 border border-gold/40 rounded-xl p-5 space-y-4">
+                  <p className="text-sm text-offwhite leading-relaxed">
+                    お礼として<br />
+                    <strong className="text-gold">「ClaudeCode初心者が初日に設定すべき7つの神設定」</strong><br />
+                    をプレゼントさせていただきます。
+                  </p>
+                  <a
+                    href="https://bit.ly/tips7"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full text-center bg-gold text-navy-deep font-bold py-3 rounded-lg text-sm hover:bg-gold-light"
+                  >
+                    プレゼントを受け取る
+                  </a>
+                  <p className="text-xs text-offwhite-dim/70 leading-relaxed">
+                    ご活用いただきClaudeCodeをより使いこなしていただけたら嬉しいです。<br />
+                    次回の神プロダクトのご案内もお楽しみに。
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => { setFeedbackSent(false); setFeedback(''); }}
