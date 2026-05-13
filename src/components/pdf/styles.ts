@@ -28,14 +28,16 @@ function resolveFontPath(filename: string): string | null {
 function getFontSrc(filename: string): string {
   // 本番環境（Vercel function）：固定 alias URL を使用
   // VERCEL_URL は deployment-specific で SSO 保護がかかる場合があるため不採用
+  // .trim() で env変数の末尾改行コード混入を防ぐ（2026-05-13 本番障害の教訓）
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp').trim();
   if (process.env.VERCEL || process.env.VERCEL_ENV) {
-    return `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/fonts/${filename}`;
+    return `${siteUrl}/fonts/${filename}`;
   }
   // ローカル開発・test:pdf スクリプト用：fsパス
   const local = resolveFontPath(filename);
   if (local) return local;
   // 最終fallback
-  return `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/fonts/${filename}`;
+  return `${siteUrl}/fonts/${filename}`;
 }
 
 export function registerFonts() {
