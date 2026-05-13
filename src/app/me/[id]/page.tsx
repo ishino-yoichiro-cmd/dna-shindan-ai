@@ -435,9 +435,9 @@ export default function MyPage({ params }: Props) {
         {/* DNA診断紹介 */}
         {reportReady && (
           <Card>
-            <h2 className="text-lg font-bold text-gold mb-3">分身AIが役に立ったらDNA診断を紹介してください</h2>
+            <h2 className="text-lg font-bold text-gold mb-3">ご友人にもDNA診断を紹介してあげてください</h2>
             <p className="text-sm text-offwhite-dim leading-relaxed mb-4">
-              DNA診断は、Claude Codeが飛躍的に賢くなる分身AIを、1人でも多くの方に活用していただきたくて、API費用も自己負担しながら無料で公開をしています。分身AIでClaudeCodeが賢くなったと思われたり、分身AIボットがお役に立てた場合には、是非このDNA診断を、ご友人の経営者にも伝えてあげてください。
+              DNA診断は、Claude Codeが飛躍的に賢くなる分身AIを、1人でも多くの方に活用していただきたくて、無料で公開しています。診断レポートでClaudeCodeが賢くなったり、分身AIボットがお役に立てた場合には、是非このDNA診断を、ご友人の経営者にも伝えてあげてください。
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
               <ShareBtn label="X" onClick={() => onShare('DNA診断AIで、自分の分身AIを作る診断を受けた。ClaudeCodeが飛躍的に賢くなるのでおすすめ。', baseUrl, 'twitter')} />
@@ -465,30 +465,6 @@ export default function MyPage({ params }: Props) {
         {reportReady && (
           <Card>
             <h2 className="text-lg font-bold text-gold mb-3">診断レポート・分身AI・分身AIボットについての感想をお聞かせください</h2>
-            {/* プレゼント：送信済みなら永続表示（ページリロード後も） */}
-            {feedbackEverSent && (
-              <div className="bg-gold/10 border border-gold/40 rounded-xl p-4 space-y-3 mb-4">
-                <p className="text-xs text-gold font-bold tracking-wide uppercase">Present</p>
-                <p className="text-sm text-offwhite leading-relaxed">
-                  感想をご提出いただいた方には、<br />
-                  <strong className="text-gold">「ClaudeCode初心者が初日に設定すべき7つの神設定」</strong><br />
-                  もプレゼントさせていただきます。
-                </p>
-                <a
-                  href="https://bit.ly/tips7"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full text-center bg-gold text-navy-deep font-bold py-3 rounded-lg text-sm hover:bg-gold-light"
-                >
-                  プレゼントを受け取る
-                </a>
-                <p className="text-xs text-offwhite-dim/70 leading-relaxed">
-                  ご活用いただきClaudeCodeをより使いこなしていただけたら嬉しいです。<br />
-                  次回の神プロダクトのご案内もお楽しみに。
-                </p>
-              </div>
-            )}
-
             {feedbackSent ? (
               <div className="space-y-4">
                 <p className="text-sm text-offwhite leading-relaxed">
