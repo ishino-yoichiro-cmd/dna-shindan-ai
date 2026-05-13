@@ -40,6 +40,9 @@ export default function MyPage({ params }: Props) {
   // 相性診断履歴
   const [matchHistory, setMatchHistory] = useState<MatchEntry[]>([]);
 
+  // PDF認証用トークン（token URLでの認証時に保存 → passwordが無い端末でのDLに使用）
+  const [authToken, setAuthToken] = useState('');
+
   // コピー完了フラグ（修正4: R-004）
   const [copied, setCopied] = useState(false);
   const [copiedDna, setCopiedDna] = useState(false);
@@ -94,6 +97,8 @@ export default function MyPage({ params }: Props) {
         });
         if (r.ok) {
           const data = await r.json();
+          // トークンを state に保存（localStorage pw が無い端末でのPDFダウンロードに使用）
+          setAuthToken(token);
           if (data.needPassword) {
             setAuthed(data);
             setPhase('set-password');
@@ -238,6 +243,11 @@ export default function MyPage({ params }: Props) {
   // ===== READY =====
   const fullName = [authed?.lastName, authed?.firstName].filter(Boolean).join(' ').trim() || 'あなた';
   const reportReady = authed?.hasPdf === true;
+  // PDFダウンロードURL: localStorage pw優先、なければ token（メールリンク経由の端末対応）
+  const savedPw = typeof window !== 'undefined' ? (window.localStorage.getItem(`me-pw:${id}`) ?? '') : '';
+  const pdfDownloadHref = savedPw
+    ? `/api/me/${id}/pdf?password=${encodeURIComponent(savedPw)}`
+    : `/api/me/${id}/pdf?token=${encodeURIComponent(authToken)}`;
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
   // authed.cloneUrl はフルURL（http〜）or パス（/clone/...）両形式が来る可能性を吸収
   const rawCloneUrl = authed?.cloneUrl ?? `/clone/${id}`;
@@ -307,7 +317,7 @@ export default function MyPage({ params }: Props) {
           {reportReady ? (
             <>
               <a
-                href={`/api/me/${id}/pdf?password=${encodeURIComponent(window.localStorage.getItem(`me-pw:${id}`) ?? '')}`}
+                href={pdfDownloadHref}
                 className="block w-full text-center bg-gold text-navy-deep font-bold py-3 rounded-lg hover:bg-gold-light"
               >
                 PDFをダウンロード
