@@ -612,11 +612,9 @@ function DailyBarChart({
       <div className="flex items-end gap-[2px] h-24">
         {entries.map(([d, n]) => {
           const isToday = d === todayKey;
-          // ゼロ日は1pxのみ表示（バー存在感なし）
-          // データあり日は max 対比で最小20%確保
-          const h = hasData && n > 0 ? Math.max(20, (n / max) * 100) : 1;
+          const h = hasData && n > 0 ? Math.max(10, (n / max) * 100) : 1;
           return (
-            <div key={d} className="flex-1 flex flex-col items-center justify-end relative group" title={`${d.slice(5)}: ${formatValue(n)}`}>
+            <div key={d} className="flex-1 h-full flex flex-col items-center justify-end relative group" title={`${d.slice(5)}: ${formatValue(n)}`}>
               {n > 0 && (
                 <span className="hidden group-hover:block absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-navy-deep border border-gold/30 text-gold text-[9px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
                   {d.slice(5)} {formatValue(n)}
