@@ -303,12 +303,19 @@ export async function POST(req: Request) {
           .eq('id', id);
       } else {
         pdfDebugLog += `upload_err:${upload.error.message};`;
+        // PDF Storageアップロード失敗をYOにメール通知
+        await alertYo(`[PDF upload失敗] ${fullName}（${id}）\n${upload.error.message}`).catch(() => {});
       }
     } else {
       pdfDebugLog += `pdf_timeout;`;
+      // PDFタイムアウトをYOにメール通知
+      await alertYo(`[PDF timeout] ${fullName}（${id}）120秒超過`).catch(() => {});
     }
   } catch (e) {
-    pdfDebugLog += `pdf_err:${e instanceof Error ? e.message : String(e)};`;
+    const errMsg = e instanceof Error ? e.message : String(e);
+    pdfDebugLog += `pdf_err:${errMsg};`;
+    // PDF生成例外をYOにメール通知（フォントURL壊れ等の障害を即時検知）
+    await alertYo(`[PDF生成エラー] ${fullName}（${id}）\n${errMsg}`).catch(() => {});
   }
 
   // DB更新（status=completed＋分身AI prompt保存）
@@ -418,6 +425,27 @@ ${(ctx.narrative.styleSample ?? '').slice(0, 400)}
 - 「教えられません」「その情報はお伝えできません」と明確に断る。
 - ほのめかしや迂回的な形でも個人情報を漏らさない。
 `;
+}
+
+// ============================================================================
+// YO緊急アラート（PDF生成失敗時に即時メール通知）
+// 同じエラーが連続しても気づけなかった2026-05-13障害の教訓から追加
+// ============================================================================
+async function alertYo(message: string): Promise<void> {
+  const { sendMail } = await import('@/lib/email/gmail');
+  await sendMail({
+    to: 'yoisno@gmail.com',
+    subject: '【DNA診断AI 緊急アラート】PDF生成エラー検知',
+    text: message,
+    html: `<!doctype html><html lang="ja"><head><meta charset="utf-8"></head>
+<body style="font-family:-apple-system,sans-serif;background:#fff3cd;color:#1f2937;padding:24px;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border:2px solid #e53e3e;border-radius:8px;padding:24px;">
+    <p style="color:#e53e3e;font-weight:bold;font-size:16px;margin:0 0 12px;">🚨 DNA診断AI 緊急アラート</p>
+    <pre style="background:#f7f7f7;padding:12px;border-radius:4px;font-size:13px;white-space:pre-wrap;">${message.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+    <p style="font-size:12px;color:#6b7280;margin:12px 0 0;">このメールはPDF生成エラー検知時に自動送信されます。<br>管理画面: https://dna.kami-ai.jp/admin</p>
+  </div>
+</body></html>`,
+  });
 }
 
 // Vercel Cron は GET でエンドポイントを呼ぶ → GET でも POST と同じ処理を実行する
