@@ -9,7 +9,7 @@ echo "=== ENV変数整合性チェック ==="
 TMPFILE=$(mktemp)
 trap "rm -f $TMPFILE" EXIT
 
-vercel env pull --environment=production "$TMPFILE" 2>/dev/null
+vercel env pull --environment=production --yes "$TMPFILE" 2>/dev/null
 
 ERRORS=0
 

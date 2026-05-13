@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supa
     .from('dna_diagnoses')
-    .select('id, first_name, last_name, email, status, relationship_tag, download_count, chat_count, api_cost_usd, created_at, last_downloaded_at, last_chat_at, completed_at, select_answers, narrative_answers, style_sample, scores, celestial_results, clone_display_name, report_text, access_token, hidden_at')
+    .select('id, first_name, last_name, email, status, relationship_tag, download_count, chat_count, api_cost_usd, created_at, last_downloaded_at, last_chat_at, completed_at, select_answers, narrative_answers, style_sample, scores, celestial_results, clone_display_name, report_text, access_token, hidden_at, pdf_storage_path, error_log')
     .order('created_at', { ascending: false });
 
   // 感想数を一括取得（N+1回避）
