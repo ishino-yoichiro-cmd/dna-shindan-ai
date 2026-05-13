@@ -48,7 +48,20 @@ export default function MyPage({ params }: Props) {
   const [feedback, setFeedback] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackEverSent, setFeedbackEverSent] = useState(false); // localStorage 永続
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+
+  // 初回マウント時: 過去に送信済みか確認
+  useEffect(() => {
+    if (typeof window !== 'undefined' && id) {
+      const sent = window.localStorage.getItem(`dna-feedback-sent:${id}`) === '1';
+      if (sent) {
+        setFeedbackEverSent(true);
+        setFeedbackSent(true);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -244,6 +257,10 @@ export default function MyPage({ params }: Props) {
       });
       if (r.ok) {
         setFeedbackSent(true);
+        setFeedbackEverSent(true);
+        if (typeof window !== 'undefined' && id) {
+          window.localStorage.setItem(`dna-feedback-sent:${id}`, '1');
+        }
       } else {
         const data = await r.json().catch(() => ({}));
         setFeedbackError(data.error ?? '送信に失敗しました。');
@@ -438,30 +455,35 @@ export default function MyPage({ params }: Props) {
         {reportReady && (
           <Card>
             <h2 className="text-lg font-bold text-gold mb-3">診断レポート・分身AI・分身AIボットについての感想をお聞かせください</h2>
+            {/* プレゼント：送信済みなら永続表示（ページリロード後も） */}
+            {feedbackEverSent && (
+              <div className="bg-gold/10 border border-gold/40 rounded-xl p-4 space-y-3 mb-4">
+                <p className="text-xs text-gold font-bold tracking-wide uppercase">Present</p>
+                <p className="text-sm text-offwhite leading-relaxed">
+                  感想をご提出いただいた方には、<br />
+                  <strong className="text-gold">「ClaudeCode初心者が初日に設定すべき7つの神設定」</strong><br />
+                  もプレゼントさせていただきます。
+                </p>
+                <a
+                  href="https://bit.ly/tips7"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full text-center bg-gold text-navy-deep font-bold py-3 rounded-lg text-sm hover:bg-gold-light"
+                >
+                  プレゼントを受け取る
+                </a>
+                <p className="text-xs text-offwhite-dim/70 leading-relaxed">
+                  ご活用いただきClaudeCodeをより使いこなしていただけたら嬉しいです。<br />
+                  次回の神プロダクトのご案内もお楽しみに。
+                </p>
+              </div>
+            )}
+
             {feedbackSent ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <p className="text-sm text-offwhite leading-relaxed">
                   貴重なご意見ありがとうございます。今後の開発に活かさせていただきます。
                 </p>
-                <div className="bg-gold/10 border border-gold/40 rounded-xl p-4 space-y-3">
-                  <p className="text-sm text-offwhite leading-relaxed">
-                    感想をご提出いただいた方には、<br />
-                    <strong className="text-gold">「ClaudeCode初心者が初日に設定すべき7つの神設定」</strong><br />
-                    もプレゼントさせていただきます。
-                  </p>
-                  <a
-                    href="https://bit.ly/tips7"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full text-center bg-gold text-navy-deep font-bold py-3 rounded-lg text-sm hover:bg-gold-light"
-                  >
-                    プレゼントを受け取る
-                  </a>
-                  <p className="text-xs text-offwhite-dim/70 leading-relaxed">
-                    ご活用いただきClaudeCodeをより使いこなしていただけたら嬉しいです。<br />
-                    次回の神プロダクトのご案内もお楽しみに。
-                  </p>
-                </div>
                 <button
                   type="button"
                   onClick={() => { setFeedbackSent(false); setFeedback(''); }}
