@@ -68,12 +68,32 @@ async function main() {
     api_cost_usd: 0,
     download_count: 0,
     chat_count: 0,
+    // PDF DLテスト用（me-page.spec.tsでtoken/passwordでのDLをテスト）
+    pdf_storage_path: `${FIXTURE_ID}.pdf`,
   };
 
-  // ON CONFLICT DO NOTHING で冪等実行
+  // ダミーPDFをStorageにアップロード（最小限の有効なPDF = 78バイト）
+  const dummyPdf = Buffer.from(
+    '%PDF-1.0\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj ' +
+    '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj ' +
+    '3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>endobj\n' +
+    'xref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n' +
+    '0000000058 00000 n\n0000000115 00000 n\n' +
+    'trailer<</Size 4/Root 1 0 R>>\nstartxref\n190\n%%EOF'
+  );
+  const { error: uploadErr } = await supa.storage
+    .from('reports')
+    .upload(`${FIXTURE_ID}.pdf`, dummyPdf, { contentType: 'application/pdf', upsert: true });
+  if (uploadErr) {
+    console.warn('⚠️  Storage upload失敗（既存の場合は無視）:', uploadErr.message);
+  } else {
+    console.log(`   Storage: ${FIXTURE_ID}.pdf アップロード済み`);
+  }
+
+  // ON CONFLICT → upsert で常に最新状態に更新
   const { error } = await (supa as any)
     .from('dna_diagnoses')
-    .upsert(row, { onConflict: 'id', ignoreDuplicates: true });
+    .upsert(row, { onConflict: 'id' });
 
   if (error) {
     console.error('❌ フィクスチャ作成失敗:', error.message);
