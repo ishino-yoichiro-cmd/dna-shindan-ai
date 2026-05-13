@@ -63,12 +63,22 @@ export async function GET(req: NextRequest) {
     feedbackCountMap[f.diagnosis_id] = (feedbackCountMap[f.diagnosis_id] ?? 0) + 1;
   }
 
+  // テスト名パターン判定（hidden_at 未設定でも常にデフォルト非表示）
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isTestRecord = (r: any): boolean => {
+    const names = [r.first_name, r.last_name, r.clone_display_name]
+      .map((n: unknown) => (typeof n === 'string' ? n.toLowerCase() : ''));
+    return names.some((n) => n.includes('テスト') || n.includes('test'));
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const allRows = ((data ?? []) as any[]).map((r) => ({
     ...(shouldSanitize ? sanitizeRow(r) : r),
     feedback_count: feedbackCountMap[r.id] ?? 0,
   }));
-  const rows = showHidden ? allRows : allRows.filter((r) => !r.hidden_at);
+  const rows = showHidden
+    ? allRows
+    : allRows.filter((r) => !r.hidden_at && !isTestRecord(r));
 
   const totalCost = rows.reduce((s, r) => s + (Number(r.api_cost_usd) || 0), 0);
   const totalDownloads = rows.reduce((s, r) => s + (r.download_count || 0), 0);

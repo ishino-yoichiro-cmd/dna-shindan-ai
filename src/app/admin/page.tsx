@@ -5,6 +5,28 @@ import { useEffect, useState } from 'react';
 // admin セッション保持用 localStorage キー（リテラル直書き禁止 → 定数化）
 const STORAGE_KEY_ADMIN_PASS = 'dna-shindan-ai:admin-pass';
 
+// 関係性タグ 日本語ラベル
+const RELATION_LABELS: Record<string, string> = {
+  mabudachi:        '親友',
+  tomodachi:        '友人',
+  shiriai:          '知人',
+  kyuyu:            '旧友',
+  business_partner: 'ビジネスパートナー',
+  kazoku:           '家族',
+  koibito:          '恋人',
+  partner:          'パートナー',
+};
+const toRelLabel = (tag: string) => RELATION_LABELS[tag] ?? tag;
+
+// ステータス 日本語ラベル
+const STATUS_LABELS: Record<string, string> = {
+  completed:  '完了',
+  processing: '処理中',
+  pending:    '未処理',
+  failed:     'エラー',
+};
+const toStatusLabel = (s: string) => STATUS_LABELS[s] ?? s;
+
 // フロントエンドではパスワードをハードコードしない。
 // ユーザーが入力したパスワードをそのままAPIに渡して検証させる設計に統一。
 // （クライアント側でのチェックはAPI側でも検証されるため、セキュリティ上は問題ない）
@@ -306,7 +328,7 @@ export default function AdminPage() {
         <section className={`flex flex-wrap gap-x-6 gap-y-1 items-center px-4 py-3 rounded-xl border text-sm ${stats.summary.alert ? 'border-red-500/50 bg-red-900/10' : 'border-gold/20 bg-navy-soft/30'}`}>
           <MiniKPI label="総数" value={`${stats.summary.total}件`} />
           <MiniKPI label="完了" value={`${stats.statusBreakdown['completed'] ?? 0}件`} accent />
-          <MiniKPI label="未完了" value={`${stats.summary.total - (stats.statusBreakdown['completed'] ?? 0)}件`} />
+          <MiniKPI label="処理中/未完" value={`${stats.summary.total - (stats.statusBreakdown['completed'] ?? 0)}件`} />
           <MiniKPI label="DL" value={`${stats.summary.totalDownloads}回`} />
           <MiniKPI label="チャット" value={`${stats.summary.totalChats}回`} />
           <span className="text-offwhite-dim/30 hidden sm:inline">|</span>
@@ -320,7 +342,7 @@ export default function AdminPage() {
             <span className="text-[11px] text-offwhite-dim/50 self-center mr-1">関係性</span>
             {Object.entries(stats.relationBreakdown).map(([tag, cnt]) => (
               <span key={tag} className="text-[11px] text-offwhite-dim bg-navy-deep/40 border border-offwhite-dim/15 rounded px-2 py-0.5">
-                {tag} <span className="text-gold font-bold">{cnt}</span>
+                {toRelLabel(tag)} <span className="text-gold font-bold">{cnt}</span>
               </span>
             ))}
           </section>
@@ -345,7 +367,7 @@ export default function AdminPage() {
                   </p>
                   <p className="text-xs text-offwhite-dim">{r.email}</p>
                   <div className="flex flex-wrap gap-2 text-[10px] text-offwhite-dim/60 mt-1">
-                    <span>状態:{r.status}</span>
+                    <span>状態:{toStatusLabel(r.status ?? '')}</span>
                     <span>DL:{r.download_count ?? 0}</span>
                     <span>Chat:{r.chat_count ?? 0}</span>
                     <span>${(r.api_cost_usd ?? 0).toFixed(2)}</span>
@@ -422,8 +444,8 @@ export default function AdminPage() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <KV label="状態" value={sel.status ?? '—'} />
-                  <KV label="関係性" value={sel.relationship_tag ?? '—'} />
+                  <KV label="状態" value={toStatusLabel(sel.status ?? '')} />
+                  <KV label="関係性" value={toRelLabel(sel.relationship_tag ?? '—')} />
                   <KV label="DL回数" value={(sel.download_count ?? 0).toString()} />
                   <KV label="Chat回数" value={(sel.chat_count ?? 0).toString()} />
                   <KV label="APIコスト" value={`$${(sel.api_cost_usd ?? 0).toFixed(3)}`} />
