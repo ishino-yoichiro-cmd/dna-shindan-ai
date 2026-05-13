@@ -26,14 +26,16 @@ function CountdownBanner({ remainingMs }: { remainingMs: number }) {
 
   return (
     <div
-      className={`fixed top-0 left-0 right-0 z-50 text-center py-2 px-4 text-xs sm:text-sm font-bold tracking-wide ${
+      className={`fixed top-0 left-0 right-0 z-50 text-center py-3 px-4 ${
         isUrgent
-          ? 'bg-red-900/90 text-red-200 border-b border-red-600/60'
-          : 'bg-navy-deep/90 text-gold border-b border-gold/30'
-      } backdrop-blur`}
+          ? 'bg-red-900/95 border-b-2 border-red-500/80'
+          : 'bg-navy-deep/95 border-b-2 border-gold/50'
+      } backdrop-blur shadow-lg`}
     >
-      <span className="opacity-70 mr-2">診断期限まで残り</span>
-      <span>
+      <span className={`text-sm sm:text-base font-semibold tracking-wide mr-3 ${isUrgent ? 'text-red-200/80' : 'text-offwhite/70'}`}>
+        診断期限まで残り
+      </span>
+      <span className={`text-xl sm:text-2xl font-bold tracking-wider ${isUrgent ? 'text-red-200' : 'text-gold'}`}>
         {days > 0 && `${days}日 `}
         {String(hours).padStart(2, '0')}:{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
       </span>
@@ -79,7 +81,7 @@ function LandingPage({ onStart, remainingMs }: { onStart: () => void; remainingM
   return (
     <>
       <CountdownBanner remainingMs={remainingMs} />
-      <main className="min-h-screen flex flex-col items-center justify-center px-6 py-16 pt-20 bg-gradient-to-b from-navy-deep via-navy to-navy-deep">
+      <main className="min-h-screen flex flex-col items-center justify-center px-6 py-16 pt-24 bg-gradient-to-b from-navy-deep via-navy to-navy-deep">
         <div className="max-w-3xl w-full space-y-12">
           <header className="text-center space-y-5">
             <div className="inline-flex items-center justify-center">
@@ -224,7 +226,7 @@ export default function LimitedPage() {
     return (
       <>
         <CountdownBanner remainingMs={remainingMs} />
-        <div className="pt-10">
+        <div className="pt-14">
           <DiagnosisProvider>
             <DiagnosisFlow />
           </DiagnosisProvider>
