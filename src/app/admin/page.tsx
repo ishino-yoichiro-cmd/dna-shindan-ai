@@ -138,8 +138,13 @@ export default function AdminPage() {
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
   const [inboxLoading, setInboxLoading] = useState(false);
   const [inboxError, setInboxError] = useState('');
+  const [inboxLoaded, setInboxLoaded] = useState(false);
   const [selectedInbox, setSelectedInbox] = useState<InboxMessage | null>(null);
   const [reply, setReply] = useState<ReplyState>({ to: '', subject: '', body: '', sending: false, sent: false, error: '' });
+  const [sendLogs, setSendLogs] = useState<Array<{
+    id: string; created_at: string; subject: string; to_type: string;
+    sent: number; failed: number; total: number; body_preview: string;
+  }>>([]);
   const [mail, setMail] = useState<MailState>({
     toType: 'completed',
     selectedIds: [],
@@ -188,20 +193,32 @@ export default function AdminPage() {
     void loadStats();
     void loadQuestions();
     void loadFeedbacks();
-    const timer = setInterval(() => { void loadStats(); void loadFeedbacks(); }, 60_000);
+    void loadSendLogs();
+    // setInterval では silent=true → 全画面スピナーを出さない
+    const timer = setInterval(() => { void loadStats(undefined, true); void loadFeedbacks(); }, 60_000);
     return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
-  const loadStats = async (forceShowHidden?: boolean) => {
-    setLoading(true);
+  const loadStats = async (forceShowHidden?: boolean, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const sh = forceShowHidden ?? showHidden;
       const r = await fetch(`/api/admin/stats?pass=${encodeURIComponent(pass)}${sh ? '&show_hidden=1' : ''}`);
       if (r.ok) setStats(await r.json());
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
+  };
+
+  const loadSendLogs = async () => {
+    try {
+      const r = await fetch(`/api/admin/send-log?pass=${encodeURIComponent(pass)}&limit=30`);
+      if (r.ok) {
+        const d = await r.json();
+        if (Array.isArray(d.logs)) setSendLogs(d.logs);
+      }
+    } catch {}
   };
 
   const handleHide = async (id: string, unhide: boolean) => {
@@ -245,6 +262,7 @@ export default function AdminPage() {
   };
 
   const loadInbox = async () => {
+    setInboxLoaded(true);
     setInboxLoading(true);
     setInboxError('');
     try {
@@ -294,6 +312,14 @@ export default function AdminPage() {
     }
   };
 
+  // タブ切り替え時の副作用
+  const handleTabChange = (tab: TabId) => {
+    setActiveTab(tab);
+    if (tab === 'inbox' && !inboxLoaded) {
+      void loadInbox();
+    }
+  };
+
   // メール送信先をIDで個別指定してメールタブに移動
   const openMailForUser = (id: string) => {
     setMail(m => ({ ...m, toType: 'selected', selectedIds: [id], result: null, error: '' }));
@@ -333,6 +359,8 @@ export default function AdminPage() {
       const d = await r.json();
       if (d.ok) {
         setMail(m => ({ ...m, result: { sent: d.sent, failed: d.failed, total: d.total }, sending: false }));
+        // 送信後にログを更新
+        void loadSendLogs();
       } else {
         setMail(m => ({ ...m, error: d.error ?? '送信失敗', sending: false }));
       }
@@ -367,7 +395,9 @@ export default function AdminPage() {
     );
   }
 
-  if (loading || !stats) {
+  // 初回ロード（stats未取得）のみ全画面スピナー
+  // 以降の定期更新は silent=true でここに到達しない
+  if (!stats) {
     return <main className="min-h-screen flex items-center justify-center text-offwhite-dim">読み込み中…</main>;
   }
 
@@ -457,7 +487,7 @@ export default function AdminPage() {
           {TABS.map(tab => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
                 activeTab === tab.id
                   ? 'bg-gold/15 text-gold border border-gold/30 border-b-0 -mb-px'
@@ -674,15 +704,28 @@ export default function AdminPage() {
         {/* ── TAB: 感想 ── */}
         {activeTab === 'feedbacks' && (
           <section className="space-y-3">
+            {(() => {
+              // テスト・スモークデータを除外（一覧に表示しない）
+              const realFeedbacks = feedbacks.filter(f => {
+                const email = f.dna_diagnoses?.email ?? '';
+                const firstName = f.dna_diagnoses?.first_name ?? '';
+                return !email.includes('smoke') &&
+                       !email.includes('e2e') &&
+                       !email.includes('test') &&
+                       firstName !== 'テスト' &&
+                       firstName !== 'Test';
+              });
+              return (
+            <>
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-gold">感想一覧 <span className="text-offwhite-dim/60 font-normal ml-2">{feedbacks.length}件</span></h2>
+              <h2 className="text-sm font-bold text-gold">感想一覧 <span className="text-offwhite-dim/60 font-normal ml-2">{realFeedbacks.length}件</span></h2>
               <button onClick={() => void loadFeedbacks()} className="text-xs border border-gold/40 text-gold px-3 py-1.5 rounded-lg hover:bg-gold/10">再読み込み</button>
             </div>
-            {feedbacks.length === 0 ? (
+            {realFeedbacks.length === 0 ? (
               <p className="text-offwhite-dim/50 text-sm text-center py-16">まだ感想はありません</p>
             ) : (
               <div className="space-y-3">
-                {feedbacks.map(f => {
+                {realFeedbacks.map(f => {
                   const diag = f.dna_diagnoses;
                   const name = [diag?.last_name, diag?.first_name].filter(Boolean).join(' ') || diag?.clone_display_name || '(no-name)';
                   return (
@@ -721,6 +764,9 @@ export default function AdminPage() {
                 })}
               </div>
             )}
+            </>
+              );
+            })()}
           </section>
         )}
 
@@ -833,6 +879,31 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* 送信履歴 */}
+            {sendLogs.length > 0 && (
+              <div className="bg-navy-soft/40 border border-gold/15 rounded-xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs text-gold/70 uppercase tracking-wider">送信履歴</h3>
+                  <button onClick={() => void loadSendLogs()} className="text-xs text-offwhite-dim/50 hover:text-offwhite">更新</button>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {sendLogs.map(log => {
+                    const toLabel = log.to_type === 'all' ? '全員' : log.to_type === 'completed' ? '完了者' : '個別選択';
+                    const dateStr = new Date(log.created_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    return (
+                      <div key={log.id} className="flex items-start gap-3 text-xs border-b border-offwhite-dim/10 pb-2 last:border-0">
+                        <span className="text-offwhite-dim/40 whitespace-nowrap pt-0.5">{dateStr}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-offwhite truncate">{log.subject}</p>
+                          <p className="text-offwhite-dim/50 mt-0.5">{toLabel} / 成功{log.sent}件{log.failed > 0 && <span className="text-amber-400"> 失敗{log.failed}件</span>}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* 過去テンプレート */}
             <div className="bg-navy-soft/40 border border-gold/15 rounded-xl p-5 space-y-3">
               <h3 className="text-xs text-gold/70 uppercase tracking-wider">クイックテンプレート</h3>
@@ -877,23 +948,12 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* 初回案内 */}
-            {inboxMessages.length === 0 && !inboxLoading && !inboxError && (
-              <div className="bg-amber-900/15 border border-amber-500/30 rounded-xl p-5 space-y-3 text-sm">
-                <p className="text-amber-300 font-bold">受信ボックスを使うための初期設定が必要です</p>
-                <ol className="text-offwhite-dim space-y-2 list-decimal list-inside">
-                  <li>
-                    <a href="https://dash.cloudflare.com" target="_blank" rel="noopener noreferrer" className="text-gold underline">Cloudflareダッシュボード</a>
-                    を開く
-                  </li>
-                  <li>kami-ai.jp → Email → Email Routing を開く</li>
-                  <li>「Routing rules」→「Add address」→ From: <code className="bg-navy-deep/60 px-1 rounded">dna@kami-ai.jp</code> / Action: Send to → <code className="bg-navy-deep/60 px-1 rounded">yoisno@gmail.com</code></li>
-                  <li>設定後、上の「受信メールを読み込む」ボタンを押す</li>
-                </ol>
-                <p className="text-offwhite-dim/50 text-xs">
-                  ※ 転送先のyoisno@gmail.com受信トレイを表示します。dna@kami-ai.jpへの返信メールがここに届きます。
-                </p>
-              </div>
+            {/* 空状態 */}
+            {inboxMessages.length === 0 && !inboxLoading && !inboxError && inboxLoaded && (
+              <p className="text-offwhite-dim/50 text-sm text-center py-16">受信メールはありません</p>
+            )}
+            {inboxMessages.length === 0 && !inboxLoading && !inboxError && !inboxLoaded && (
+              <p className="text-offwhite-dim/50 text-sm text-center py-16">読み込み中…</p>
             )}
 
             {inboxError && (
@@ -998,21 +1058,58 @@ export default function AdminPage() {
 
         {/* ── TAB: ページ管理 ── */}
         {activeTab === 'pages' && (
-          <section className="max-w-2xl space-y-4">
-            <h2 className="text-sm font-bold text-gold">ページ管理</h2>
-            <div className="bg-navy-soft/40 border border-gold/20 rounded-xl p-8 text-center space-y-3">
-              <p className="text-offwhite-dim">診断フォームの質問文・選択肢を編集できる機能は次フェーズで実装します。</p>
-              <p className="text-offwhite-dim/50 text-sm">現在の質問定義: {questions.length}件読み込み済み</p>
-              <div className="text-left mt-4 space-y-2 max-h-96 overflow-y-auto">
-                {questions.slice(0, 10).map(q => (
-                  <div key={q.id} className="bg-navy-deep/40 rounded p-3 border border-offwhite-dim/10">
-                    <p className="text-xs text-gold/70 font-bold">{q.id}</p>
-                    <p className="text-sm text-offwhite mt-0.5">{q.prompt ?? q.title ?? '(定義なし)'}</p>
-                    {q.choices && <p className="text-[10px] text-offwhite-dim/50 mt-1">選択肢 {q.choices.length}件</p>}
-                  </div>
-                ))}
-                {questions.length > 10 && <p className="text-xs text-offwhite-dim/40 text-center">…他 {questions.length - 10}件</p>}
-              </div>
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-gold">マイページ管理 <span className="text-offwhite-dim/60 font-normal ml-2">完了者 {stats.rows.filter(r => r.status === 'completed' && r.access_token).length}件</span></h2>
+              <button onClick={() => void loadStats()} className="text-xs border border-gold/40 text-gold px-3 py-1.5 rounded-lg hover:bg-gold/10">再読み込み</button>
+            </div>
+
+            {/* 完了者のマイページURL一覧 */}
+            <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+              {stats.rows
+                .filter(r => r.status === 'completed' && r.access_token)
+                .map(r => {
+                  const name = [r.last_name, r.first_name].filter(Boolean).join(' ') || r.clone_display_name || '(no-name)';
+                  const myPageUrl = `https://dna.kami-ai.jp/me/${r.id}?token=${r.access_token}`;
+                  return (
+                    <div key={r.id} className="bg-navy-soft/40 border border-gold/15 rounded-xl px-4 py-3 space-y-2">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="text-sm font-bold text-offwhite">{name}</span>
+                        <span className="text-xs text-offwhite-dim/60">{r.email}</span>
+                        <span className="text-[10px] text-offwhite-dim/40 ml-auto">{r.completed_at?.slice(0,16).replace('T',' ')}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={myPageUrl}
+                          target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-gold/80 hover:text-gold underline truncate max-w-xs"
+                        >
+                          {myPageUrl}
+                        </a>
+                        <button
+                          onClick={() => { void navigator.clipboard.writeText(myPageUrl); }}
+                          className="text-[10px] border border-offwhite-dim/20 text-offwhite-dim/60 hover:text-offwhite px-2 py-0.5 rounded shrink-0"
+                        >
+                          コピー
+                        </button>
+                        <button
+                          onClick={() => openMailForUser(r.id)}
+                          className="text-[10px] border border-blue-400/30 text-blue-300/70 hover:text-blue-300 px-2 py-0.5 rounded shrink-0"
+                        >
+                          メール送信
+                        </button>
+                      </div>
+                      <div className="flex gap-3 text-[10px] text-offwhite-dim/40">
+                        <span>DL: {r.download_count ?? 0}回</span>
+                        <span>Chat: {r.chat_count ?? 0}回</span>
+                        <span>トークン: <code className="font-mono">{r.access_token?.slice(0, 8)}…</code></span>
+                      </div>
+                    </div>
+                  );
+                })}
+              {stats.rows.filter(r => r.status === 'completed' && r.access_token).length === 0 && (
+                <p className="text-offwhite-dim/50 text-sm text-center py-16">完了者がいません</p>
+              )}
             </div>
           </section>
         )}

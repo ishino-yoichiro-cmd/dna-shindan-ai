@@ -121,7 +121,11 @@ export async function POST(req: Request) {
   let sent = 0;
   let failed = 0;
 
-  const buildPayload = (row: { first_name?: string; last_name?: string; access_token?: string; id: string }) => {
+  // 個別送信（selected, 1件）のみBCCをyoisno@gmail.comに追加
+  // 一括送信は後述のサマリーメール方式
+  const isSingleSend = Array.isArray(to) && rows.length === 1;
+
+  const buildPayload = (row: { first_name?: string; last_name?: string; access_token?: string; id: string; email?: string | null }) => {
     const firstName = row.first_name ?? '';
     const name = [row.last_name, row.first_name].filter(Boolean).join(' ') || firstName || 'お客様';
     const myPageUrl = row.access_token
@@ -152,9 +156,12 @@ export async function POST(req: Request) {
   for (let i = 0; i < rows.length; i += CONCURRENCY) {
     const batch = rows.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
-      batch.map(row => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      batch.map((row: any) => {
         const { email, resolvedSubject, resolvedBody, htmlBody } = buildPayload(row);
-        return sendMail({ to: email, subject: resolvedSubject, text: resolvedBody, html: htmlBody })
+        // 個別1件送信のみBCCで自分に複製
+        const bcc = isSingleSend ? 'yoisno@gmail.com' : undefined;
+        return sendMail({ to: email, subject: resolvedSubject, text: resolvedBody, html: htmlBody, bcc })
           .then(r => ({ email, result: r }));
       }),
     );
@@ -173,6 +180,32 @@ export async function POST(req: Request) {
       }
     }
   }
+
+  // 一括送信（2件以上）はサマリーをyoisno@gmail.comに送信
+  if (!isSingleSend && sent > 0) {
+    const toLabel = to === 'all' ? '全員' : to === 'completed' ? '完了者' : `選択${rows.length}名`;
+    const summaryText = `【DNA診断AI 送信サマリー】\n\n宛先: ${toLabel}\n件名: ${subject}\n\n送信完了: ${sent}件成功 / ${failed}件失敗 / 合計${rows.length}件\n\n--- 本文プレビュー ---\n${bodyText.slice(0, 300)}${bodyText.length > 300 ? '...' : ''}`;
+    await sendMail({
+      to: 'yoisno@gmail.com',
+      subject: `[送信記録] ${subject} (${sent}/${rows.length}件)`,
+      text: summaryText,
+    }).catch(() => { /* サマリー失敗は無視 */ });
+  }
+
+  // 送信ログをDBに記録
+  // 送信ログをDBに記録（型検査を回避するためanyキャスト）
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('email_send_log').insert({
+      subject,
+      to_type: Array.isArray(to) ? 'selected' : to,
+      sent,
+      failed,
+      total: rows.length,
+      details,
+      body_preview: bodyText.slice(0, 200),
+    });
+  } catch { /* ログ失敗は無視 */ }
 
   return Response.json({ ok: true, sent, failed, total: rows.length, details });
 }

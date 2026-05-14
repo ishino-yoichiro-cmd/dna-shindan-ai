@@ -24,6 +24,7 @@ interface SendArgs {
   subject: string;
   text: string;
   html?: string;
+  bcc?: string;
   attachments?: { filename: string; content: Buffer | string }[];
 }
 
@@ -38,6 +39,7 @@ export async function sendMail(args: SendArgs): Promise<{ ok: boolean; messageId
       from,
       replyTo,
       to: args.to,
+      bcc: args.bcc,
       subject: args.subject,
       text: args.text,
       html: args.html,
