@@ -113,28 +113,28 @@ export async function POST(req: Request) {
     }
   }
 
-  // 順次送信（SMTP負荷対策で1通ずつ）
+  // 並列送信（concurrency=5）でタイムアウト回避
+  // 順次100ms間隔だと112件で112秒超 → Vercelタイムアウト。
+  // 並列5で約20〜25秒に短縮。Gmail SMTPは接続キャッシュ済みのため並列可。
+  const CONCURRENCY = 5;
+  const details: { email: string; ok: boolean; error?: string }[] = [];
   let sent = 0;
   let failed = 0;
-  const details: { email: string; ok: boolean; error?: string }[] = [];
 
-  for (const row of rows) {
+  const buildPayload = (row: { first_name?: string; last_name?: string; access_token?: string; id: string }) => {
     const firstName = row.first_name ?? '';
     const name = [row.last_name, row.first_name].filter(Boolean).join(' ') || firstName || 'お客様';
     const myPageUrl = row.access_token
       ? `${SITE_URL}/me/${row.id}?token=${row.access_token}`
       : `${SITE_URL}/me/${row.id}`;
-
     const resolvedSubject = subject
       .replace(/\{\{name\}\}/g, name)
       .replace(/\{\{firstName\}\}/g, firstName)
       .replace(/\{\{myPageUrl\}\}/g, myPageUrl);
-
     const resolvedBody = bodyText
       .replace(/\{\{name\}\}/g, name)
       .replace(/\{\{firstName\}\}/g, firstName)
       .replace(/\{\{myPageUrl\}\}/g, myPageUrl);
-
     const htmlBody = `<!doctype html><html lang="ja"><head><meta charset="utf-8"></head>
 <body style="font-family:'Noto Sans JP',-apple-system,sans-serif;background:#fbfaf6;color:#1f2937;padding:24px;line-height:1.7;">
   <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e0d3;border-radius:12px;padding:32px;">
@@ -145,24 +145,33 @@ export async function POST(req: Request) {
     </p>
   </div>
 </body></html>`;
+    return { email: row.email as string, resolvedSubject, resolvedBody, htmlBody };
+  };
 
-    const result = await sendMail({
-      to: row.email,
-      subject: resolvedSubject,
-      text: resolvedBody,
-      html: htmlBody,
-    });
-
-    if (result.ok) {
-      sent++;
-      details.push({ email: row.email, ok: true });
-    } else {
-      failed++;
-      details.push({ email: row.email, ok: false, error: result.error });
+  // concurrency制御付き並列実行
+  for (let i = 0; i < rows.length; i += CONCURRENCY) {
+    const batch = rows.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(row => {
+        const { email, resolvedSubject, resolvedBody, htmlBody } = buildPayload(row);
+        return sendMail({ to: email, subject: resolvedSubject, text: resolvedBody, html: htmlBody })
+          .then(r => ({ email, result: r }));
+      }),
+    );
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        if (r.value.result.ok) {
+          sent++;
+          details.push({ email: r.value.email, ok: true });
+        } else {
+          failed++;
+          details.push({ email: r.value.email, ok: false, error: r.value.result.error });
+        }
+      } else {
+        failed++;
+        details.push({ email: '(unknown)', ok: false, error: String(r.reason) });
+      }
     }
-
-    // SMTP負荷対策: 100ms間隔
-    await new Promise(r => setTimeout(r, 100));
   }
 
   return Response.json({ ok: true, sent, failed, total: rows.length, details });
