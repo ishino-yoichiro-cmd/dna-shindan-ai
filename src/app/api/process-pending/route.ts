@@ -298,6 +298,41 @@ export async function POST(req: Request) {
     if (result) {
       pdfBuffer = result;
       pdfDebugLog += `pdf:${result.byteLength}B;`;
+
+      // ── PDF品質サニティチェック（物理ゲート）──
+      // Vercel Node.js環境でPythonが使えないため、バイナリ解析で最低限の品質を保証する
+      const pdfQualityIssues: string[] = [];
+      try {
+        const buf = Buffer.from(result);
+        // (1) PDFマジックバイト確認
+        if (!buf.slice(0, 5).toString('ascii').startsWith('%PDF-')) {
+          pdfQualityIssues.push('invalid_pdf_header');
+        }
+        // (2) ページ数チェック（/Type /Page を数える）
+        const pdfStr = buf.toString('binary');
+        const pageMatches = pdfStr.match(/\/Type\s*\/Page[^s]/g) ?? [];
+        const pageCount = pageMatches.length;
+        if (pageCount < 40) pdfQualityIssues.push(`pages_too_few:${pageCount}`);
+        if (pageCount > 120) pdfQualityIssues.push(`pages_too_many:${pageCount}`);
+        // (3) ファイルサイズチェック（小さすぎ=コンテンツ欠落、大きすぎ=異常）
+        if (result.byteLength < 150_000) pdfQualityIssues.push(`size_too_small:${result.byteLength}B`);
+        if (result.byteLength > 10_000_000) pdfQualityIssues.push(`size_too_large:${result.byteLength}B`);
+        // (4) テキスト存在確認（BT...ET ブロックが最低50個あること）
+        const textBlockCount = (pdfStr.match(/BT\s/g) ?? []).length;
+        if (textBlockCount < 50) pdfQualityIssues.push(`text_blocks_too_few:${textBlockCount}`);
+
+        if (pdfQualityIssues.length > 0) {
+          pdfDebugLog += `quality_issues:${pdfQualityIssues.join(',')};`;
+          await alertYo(
+            `[PDF品質警告] ${fullName}（${id}）\n問題: ${pdfQualityIssues.join(', ')}\nページ数: ${pageCount} / サイズ: ${result.byteLength}B`
+          ).catch(() => {});
+        } else {
+          pdfDebugLog += `quality_ok:pages=${pageCount};`;
+        }
+      } catch (qe) {
+        pdfDebugLog += `quality_check_err:${qe instanceof Error ? qe.message : String(qe)};`;
+      }
+
       const path = `${id}.pdf`;
       const upload = await supa.storage.from('reports').upload(path, pdfBuffer, {
         contentType: 'application/pdf',
