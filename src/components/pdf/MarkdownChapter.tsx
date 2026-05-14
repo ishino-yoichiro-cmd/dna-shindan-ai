@@ -500,6 +500,7 @@ function parseMarkdown(md: string): ParseNode[] {
 function H2({ text }: { text: string }) {
   return (
     <View
+      minPresenceAhead={80}
       style={{
         flexDirection: 'row',
         alignItems: 'stretch',
@@ -541,6 +542,7 @@ function H2({ text }: { text: string }) {
 function H3({ text }: { text: string }) {
   return (
     <View
+      minPresenceAhead={60}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -739,7 +741,7 @@ function Quote({ text }: { text: string }) {
   if (lines.length === 0) return null;
   return (
     <View
-      wrap={false}
+      minPresenceAhead={50}
       style={{
         backgroundColor: colors.quoteBg,
         borderLeftWidth: 4,
@@ -753,7 +755,6 @@ function Quote({ text }: { text: string }) {
         marginTop: 12,
         marginBottom: 14,
         borderRadius: 3,
-        flexShrink: 0,
       }}
     >
       <Text style={{ fontSize: 8, color: colors.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 6 }}>
@@ -791,6 +792,7 @@ function Callout({
   }[kind];
   return (
     <View
+      minPresenceAhead={50}
       style={{
         backgroundColor: palette.bg,
         borderLeftWidth: 4,
@@ -874,33 +876,43 @@ function Table({ rows }: { rows: string[][] }) {
   const colWidth = `${100 / cols}%`;
   return (
     <View
+      minPresenceAhead={40}
       style={{
         marginTop: 10,
         marginBottom: 14,
         borderWidth: 0.5,
         borderColor: colors.divider,
         borderRadius: 4,
-        // overflow:'hidden' は react-pdf のページ境界で先頭・末尾行のボーダーを欠落させるため除去
+        // wrap は許可：大きいテーブルはページまたぎを許容する
+        // wrap={false} はヘッダー行にのみ適用（下のView参照）
       }}
-      wrap={false}
     >
+      {/* ヘッダー行: wrap={false} でヘッダーと最初のデータ行が分離しないよう保護 */}
       <View style={{ flexDirection: 'row', backgroundColor: colors.primary }} wrap={false}>
         {header.map((h, i) => (
-          <Text
+          // View/Text 構造: View にwidth・padding を持たせ Text は flex:1 で高さを自動拡張
+          // Text に直接 width を指定するとセル高が固定されテキストがクリップされるバグを回避
+          <View
             key={i}
             style={{
               width: colWidth as `${number}%`,
-              fontSize: 9.5,
-              fontWeight: 700,
-              color: colors.textInverse,
               padding: 7,
               borderRightWidth: 0.5,
               borderRightColor: colors.primaryLight,
-              letterSpacing: 0.3,
             }}
           >
-            {h.replace(/\*\*/g, '')}
-          </Text>
+            <Text
+              style={{
+                fontSize: 9.5,
+                fontWeight: 700,
+                color: colors.textInverse,
+                letterSpacing: 0.3,
+                lineHeight: 1.4,
+              }}
+            >
+              {h.replace(/\*\*/g, '')}
+            </Text>
+          </View>
         ))}
       </View>
       {body.map((row, ri) => (
@@ -914,20 +926,26 @@ function Table({ rows }: { rows: string[][] }) {
           }}
         >
           {row.map((cell, ci) => (
-            <Text
+            // View/Text 構造: セルが長文でも行高が自動拡張する
+            <View
               key={ci}
               style={{
                 width: colWidth as `${number}%`,
-                fontSize: 9.5,
-                color: colors.text,
                 padding: 7,
                 borderRightWidth: 0.5,
                 borderRightColor: colors.divider,
-                lineHeight: 1.55,
               }}
             >
-              {cell.replace(/\*\*/g, '')}
-            </Text>
+              <Text
+                style={{
+                  fontSize: 9.5,
+                  color: colors.text,
+                  lineHeight: 1.55,
+                }}
+              >
+                {cell.replace(/\*\*/g, '')}
+              </Text>
+            </View>
           ))}
         </View>
       ))}
