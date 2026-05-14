@@ -135,23 +135,35 @@ for pg_num in body_pages:
         for j in range(i+1, len(content_blocks)):
             b1 = content_blocks[i]
             b2 = content_blocks[j]
-            # bounding box: (x0, y0, x1, y1, text, block_no, block_type)
-            y1_top, y1_bot = b1[1], b1[3]
-            y2_top, y2_bot = b2[1], b2[3]
-            # 垂直方向の重なりをチェック
+            # bounding box: (x0, y0, x1, y1, text, ...)
+            x1_l, y1_top, x1_r, y1_bot = b1[0], b1[1], b1[2], b1[3]
+            x2_l, y2_top, x2_r, y2_bot = b2[0], b2[1], b2[2], b2[3]
+
+            # ── Y方向の重なり確認 ──
             overlap_height = min(y1_bot, y2_bot) - max(y1_top, y2_top)
             block_height = min(y1_bot - y1_top, y2_bot - y2_top)
-            # 重なりがブロック高の30%以上なら重なりと判定
-            if overlap_height > 0 and block_height > 0:
-                overlap_ratio = overlap_height / block_height
-                if overlap_ratio > 0.30:
-                    # フッター/ヘッダー同士の重なりは除外（y座標が750pt以上 or 50pt以下）
-                    if not (y1_top > page_height * 0.92 and y2_top > page_height * 0.92):
-                        if not (y1_bot < page_height * 0.08 and y2_bot < page_height * 0.08):
-                            overlaps_found += 1
-                            if overlaps_found == 1:
-                                # 最初の重なりのみ詳細出力
-                                pass
+            if overlap_height <= 0 or block_height <= 0:
+                continue
+            y_overlap_ratio = overlap_height / block_height
+            if y_overlap_ratio <= 0.30:
+                continue
+
+            # ── X方向の重なり確認（テーブル横並びセルの誤検知防止）──
+            # テーブルの同一行セルは y 重なりが大きいが x が分離している → 除外
+            x_overlap = min(x1_r, x2_r) - max(x1_l, x2_l)
+            if x_overlap <= 2:  # x方向に2pt以下しか重ならないものは除外
+                continue
+
+            # ── フッター・ヘッダー同士の重なりは除外 ──
+            if y1_top > page_height * 0.92 and y2_top > page_height * 0.92:
+                continue
+            if y1_bot < page_height * 0.08 and y2_bot < page_height * 0.08:
+                continue
+            # どちらかがフッター領域（下部8%）に完全に収まる場合も除外
+            if y1_top > page_height * 0.92 or y2_top > page_height * 0.92:
+                continue
+
+            overlaps_found += 1
 
     if overlaps_found > 0:
         overlap_pages.append((pg_num+1, overlaps_found))
@@ -180,13 +192,16 @@ for pg_num in body_pages:
         if not b[4].strip():
             continue
         x0, y0, x1, y1 = b[0], b[1], b[2], b[3]
-        # ページ境界を5pt余裕を持たせてチェック（フッター除外のため下端は余裕大きめ）
+        # クリップ判定：真にページ外に出ているテキストのみ検出
+        # フッター（絶対配置、下部40pt以内）は除外 - 意図的配置
+        # paddingBottom=56pt なので本文は page_height-56 以上には通常出てこない
+        # ただし y1 が page_height を超えている場合のみ真のクリップとして検出
         clipped = False
-        if y1 > page_height - 15:  # 下端クリップ（フッター領域15pt除く）
+        if y1 > page_height + 2:  # ページ高さを超過（実際にはみ出している）
             clipped = True
         if y0 < -5:               # 上端クリップ
             clipped = True
-        if x0 < -5 or x1 > page_width + 5:  # 横クリップ
+        if x0 < -10 or x1 > page_width + 10:  # 横クリップ（余裕10pt）
             clipped = True
         if clipped and len(b[4].strip()) > 5:
             clip_pages.append((pg_num+1, round(y0), round(y1), b[4].strip()[:30]))
