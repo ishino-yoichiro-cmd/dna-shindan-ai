@@ -98,7 +98,9 @@ async function generateChapterAnthropic(
       ],
     });
 
-    const text = extractTextFromResponse(response);
+    const rawText = extractTextFromResponse(response);
+    // Gemini側と同様にQCゲートを通す（blockquote除去・見出し修正・ラベル除去）
+    const { sanitizedText: text } = runQualityGate(rawText, chapterId);
     const usage = {
       inputTokens: response.usage.input_tokens ?? 0,
       outputTokens: response.usage.output_tokens ?? 0,
