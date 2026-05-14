@@ -19,3 +19,7 @@ scripts/sample-output*.json
 scripts/debug-*.pdf
 scripts/.local-*.local
 tsconfig.tsbuildinfo
+
+# 一時envファイル（本番credあり・git禁止）
+.env.prod
+.env.regen
