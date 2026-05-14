@@ -309,13 +309,18 @@ export default function AdminPage() {
       setMail(m => ({ ...m, error: '送信先を選択してください' }));
       return;
     }
+    // 一括送信は必ず確認ダイアログを挟む
+    if (mail.toType !== 'selected') {
+      const label = mail.toType === 'completed' ? '完了者全員' : '全ユーザー';
+      if (!window.confirm(`【送信確認】\n${label}（${mailTargetCount}名）にメールを送信します。\n\n件名: ${mail.subject}\n\nよろしいですか？`)) return;
+    }
     setMail(m => ({ ...m, sending: true, error: '', result: null }));
     try {
       const to = mail.toType === 'selected' ? mail.selectedIds : mail.toType;
       const r = await fetch('/api/admin/send-mail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pass, to, subject: mail.subject, body: mail.body }),
+        body: JSON.stringify({ pass, to, subject: mail.subject, body: mail.body, confirm: true }),
       });
       const d = await r.json();
       if (d.ok) {

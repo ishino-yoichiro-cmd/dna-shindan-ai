@@ -23,7 +23,7 @@ function verifyPass(pass: string): boolean {
 }
 
 export async function POST(req: Request) {
-  let body: { pass?: string; to?: unknown; subject?: string; body?: string };
+  let body: { pass?: string; to?: unknown; subject?: string; body?: string; confirm?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -37,6 +37,14 @@ export async function POST(req: Request) {
   const { to, subject, body: bodyText } = body;
   if (!subject?.trim() || !bodyText?.trim()) {
     return Response.json({ ok: false, error: '件名・本文は必須です' }, { status: 400 });
+  }
+
+  // 一括送信（all/completed）は confirm:true が必須 — 誤API叩きによる誤送信防止
+  if ((to === 'all' || to === 'completed') && !body.confirm) {
+    return Response.json(
+      { ok: false, error: '一括送信には confirm:true が必要です', requireConfirm: true },
+      { status: 400 },
+    );
   }
 
   const supabase = createClient(
