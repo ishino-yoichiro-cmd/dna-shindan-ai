@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "verify:no-real-name": "bash scripts/verify-no-real-name.sh ./",
-    "prebuild": "npm run verify:no-real-name",
+    "prebuild": "npm run verify:no-real-name && node lib/__tests__/invariants.test.mjs",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "next lint",
