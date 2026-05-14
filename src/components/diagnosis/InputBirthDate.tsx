@@ -27,7 +27,10 @@ export function InputBirthDate() {
   const [selMonth, setSelMonth] = useState<number>(0);
   const [selDay,   setSelDay]   = useState<number>(0);
 
-  // 初回マウント時: storeにすでに値があれば復元
+  // birthDate が変わるたびにセレクタに同期する
+  // （HYDRATE が useEffect より後に実行されるタイミング問題の根本対策）
+  // 注: birthDate がstoreに入っている状態でユーザーが選択し直しても、
+  //     同じ値での setSelXxx はReactが差分なしと判断して再レンダリングしないためループ不発生
   useEffect(() => {
     if (birthDate && /^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
       const [y, m, d] = birthDate.split('-').map(Number);
@@ -35,8 +38,7 @@ export function InputBirthDate() {
       setSelMonth(m);
       setSelDay(d);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [birthDate]);
 
   // 3値が揃ったらstoreに書く
   const commitDate = (y: number, m: number, d: number) => {

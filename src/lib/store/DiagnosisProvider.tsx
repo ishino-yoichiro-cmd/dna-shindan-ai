@@ -37,6 +37,23 @@ export function DiagnosisProvider({ children }: { children: ReactNode }) {
   // Hydrate from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    // ?reset=1 クエリパラメータ → localStorage を完全クリアして新規スタート
+    // 誕生日入力ミス等でやり直したいユーザーに案内するURLとして使用
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('reset') === '1') {
+        window.localStorage.removeItem(STORAGE_KEY);
+        // クエリパラメータを除去してリダイレクト（履歴を汚さない）
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState(null, '', cleanUrl);
+        // reset済みなのでHYDRATEせずに新規スタート
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
     // 旧バージョンの localStorage キーを起動時に明示削除（破壊的バージョン移行）
     // 例：v1（40問仕様）→ v2（30問仕様）で残存セッションが Step 31-40 を踏むと ErrorPlaceholder に落ちる
     try {
