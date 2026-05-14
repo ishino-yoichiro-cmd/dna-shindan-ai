@@ -6,7 +6,14 @@
 //   to: 'all' | 'completed' | string[],  // all=全員 / completed=完了者 / string[]=ID配列
 //   subject: string,
 //   body: string,   // {{name}} {{firstName}} {{myPageUrl}} プレースホルダー対応
+//   confirm: true,         // 一括送信（all/completed）時は必須
+//   targetCount: number,   // 一括送信時は必須 — DBの実件数と一致しない場合は物理拒否
 // }
+//
+// 【誤送信防止 2重ゲート】
+// Gate 1: confirm:true がなければ即拒否
+// Gate 2: targetCount が DB の実件数と一致しなければ即拒否
+//   → 盲目的な curl 直叩き・件数不明での一括送信を構造的に不可能にする
 
 import { createClient } from '@supabase/supabase-js';
 import { sendMail } from '@/lib/email/gmail';
@@ -23,7 +30,14 @@ function verifyPass(pass: string): boolean {
 }
 
 export async function POST(req: Request) {
-  let body: { pass?: string; to?: unknown; subject?: string; body?: string; confirm?: boolean };
+  let body: {
+    pass?: string;
+    to?: unknown;
+    subject?: string;
+    body?: string;
+    confirm?: boolean;
+    targetCount?: number;
+  };
   try {
     body = await req.json();
   } catch {
@@ -39,7 +53,7 @@ export async function POST(req: Request) {
     return Response.json({ ok: false, error: '件名・本文は必須です' }, { status: 400 });
   }
 
-  // 一括送信（all/completed）は confirm:true が必須 — 誤API叩きによる誤送信防止
+  // ── Gate 1: 一括送信は confirm:true 必須 ──────────────────────────────────
   if ((to === 'all' || to === 'completed') && !body.confirm) {
     return Response.json(
       { ok: false, error: '一括送信には confirm:true が必要です', requireConfirm: true },
@@ -54,13 +68,10 @@ export async function POST(req: Request) {
   );
 
   // 宛先を決定
-  let query = supabase
-    .from('dna_diagnoses')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .select('id, first_name, last_name, email, access_token, status') as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = supabase.from('dna_diagnoses').select('id, first_name, last_name, email, access_token, status') as any;
 
   if (to === 'all') {
-    // 隠し以外の全員（メールアドレスがある人）
     query = query.not('email', 'is', null).is('hidden_at', null);
   } else if (to === 'completed') {
     query = query.eq('status', 'completed').not('email', 'is', null).is('hidden_at', null);
@@ -76,6 +87,32 @@ export async function POST(req: Request) {
     return Response.json({ ok: true, sent: 0, failed: 0, total: 0, details: [] });
   }
 
+  // ── Gate 2: targetCount 照合（一括送信のみ） ──────────────────────────────
+  // 呼び出し元が明示した件数と DB の実件数が一致しない場合は物理拒否。
+  // これにより「何人に送るか把握せずに叩く」ことが構造的に不可能になる。
+  if (to === 'all' || to === 'completed') {
+    if (body.targetCount === undefined || body.targetCount === null) {
+      return Response.json(
+        {
+          ok: false,
+          error: `一括送信には targetCount（送信対象件数）の明示が必要です。現在の対象: ${rows.length}件`,
+          actualCount: rows.length,
+        },
+        { status: 400 },
+      );
+    }
+    if (body.targetCount !== rows.length) {
+      return Response.json(
+        {
+          ok: false,
+          error: `件数不一致: 指定 ${body.targetCount}件 ≠ 実際 ${rows.length}件。管理画面を再読み込みして件数を確認してください。`,
+          actualCount: rows.length,
+        },
+        { status: 400 },
+      );
+    }
+  }
+
   // 順次送信（SMTP負荷対策で1通ずつ）
   let sent = 0;
   let failed = 0;
@@ -88,7 +125,6 @@ export async function POST(req: Request) {
       ? `${SITE_URL}/me/${row.id}?token=${row.access_token}`
       : `${SITE_URL}/me/${row.id}`;
 
-    // プレースホルダー置換
     const resolvedSubject = subject
       .replace(/\{\{name\}\}/g, name)
       .replace(/\{\{firstName\}\}/g, firstName)
@@ -99,7 +135,6 @@ export async function POST(req: Request) {
       .replace(/\{\{firstName\}\}/g, firstName)
       .replace(/\{\{myPageUrl\}\}/g, myPageUrl);
 
-    // HTML版（改行をbrに変換）
     const htmlBody = `<!doctype html><html lang="ja"><head><meta charset="utf-8"></head>
 <body style="font-family:'Noto Sans JP',-apple-system,sans-serif;background:#fbfaf6;color:#1f2937;padding:24px;line-height:1.7;">
   <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e0d3;border-radius:12px;padding:32px;">

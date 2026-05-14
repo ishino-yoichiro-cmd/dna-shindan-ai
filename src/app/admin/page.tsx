@@ -320,7 +320,15 @@ export default function AdminPage() {
       const r = await fetch('/api/admin/send-mail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pass, to, subject: mail.subject, body: mail.body, confirm: true }),
+        body: JSON.stringify({
+          pass,
+          to,
+          subject: mail.subject,
+          body: mail.body,
+          confirm: true,
+          // Gate 2: DBの実件数と照合するため、UI側が把握している件数を明示送信
+          ...(typeof to === 'string' ? { targetCount: mailTargetCount } : {}),
+        }),
       });
       const d = await r.json();
       if (d.ok) {
