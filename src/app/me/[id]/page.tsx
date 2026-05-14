@@ -390,7 +390,7 @@ export default function MyPage({ params }: Props) {
         {/* シェア */}
         {reportReady && (
           <Card>
-            <h2 className="text-lg font-bold text-gold mb-3">分身AIをシェアしてみませんか？</h2>
+            <h2 className="text-lg font-bold text-gold mb-3">分身AIボットをシェアしてみませんか？</h2>
             <div className="text-sm text-offwhite leading-relaxed mb-4 space-y-3">
               <p>
                 仕事の仲間・友人や家族に、分身AIのURLを渡して、自分のことをもっと知ってもらいましょう。

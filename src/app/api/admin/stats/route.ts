@@ -40,9 +40,11 @@ export async function GET(req: NextRequest) {
   if (!sUrl || !sKey) return Response.json({ ok: false, error: 'server' }, { status: 500 });
   const supa = createClient(sUrl, sKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
+  // report_text / scores / celestial_results は大容量（1件100KB超）のため全件取得から除外。
+  // 詳細表示時は /api/admin/detail?id=xxx で個別取得。
   const { data, error } = await supa
     .from('dna_diagnoses')
-    .select('id, first_name, last_name, email, status, relationship_tag, download_count, chat_count, api_cost_usd, created_at, last_downloaded_at, last_chat_at, completed_at, select_answers, narrative_answers, style_sample, scores, celestial_results, clone_display_name, report_text, access_token, hidden_at, pdf_storage_path, error_log')
+    .select('id, first_name, last_name, email, status, relationship_tag, download_count, chat_count, api_cost_usd, created_at, last_downloaded_at, last_chat_at, completed_at, select_answers, narrative_answers, style_sample, clone_display_name, access_token, hidden_at, pdf_storage_path, error_log')
     .order('created_at', { ascending: false });
 
   // 感想数を一括取得（N+1回避）
