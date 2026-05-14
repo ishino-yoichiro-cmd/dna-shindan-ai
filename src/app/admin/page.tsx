@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react';
 
-// admin セッション保持用 localStorage キー（リテラル直書き禁止 → 定数化）
 const STORAGE_KEY_ADMIN_PASS = 'dna-shindan-ai:admin-pass';
 
-// 関係性タグ 日本語ラベル
 const RELATION_LABELS: Record<string, string> = {
   mabudachi:        '親友',
   tomodachi:        '友人',
@@ -18,7 +16,6 @@ const RELATION_LABELS: Record<string, string> = {
 };
 const toRelLabel = (tag: string) => RELATION_LABELS[tag] ?? tag;
 
-// ステータス 日本語ラベル
 const STATUS_LABELS: Record<string, string> = {
   completed:  '完了',
   processing: '処理中',
@@ -27,9 +24,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 const toStatusLabel = (s: string) => STATUS_LABELS[s] ?? s;
 
-// フロントエンドではパスワードをハードコードしない。
-// ユーザーが入力したパスワードをそのままAPIに渡して検証させる設計に統一。
-// （クライアント側でのチェックはAPI側でも検証されるため、セキュリティ上は問題ない）
+type TabId = 'data' | 'feedbacks' | 'mail' | 'pages';
 
 interface SubmissionRow {
   id: string;
@@ -97,6 +92,16 @@ interface StatsResponse {
   rows: SubmissionRow[];
 }
 
+interface MailState {
+  toType: 'completed' | 'all' | 'selected';
+  selectedIds: string[];
+  subject: string;
+  body: string;
+  sending: boolean;
+  result: { sent: number; failed: number; total: number } | null;
+  error: string;
+}
+
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
   const [pass, setPass] = useState('');
@@ -108,7 +113,16 @@ export default function AdminPage() {
   const [showHidden, setShowHidden] = useState(false);
   const [hidingId, setHidingId] = useState<string | null>(null);
   const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
-  const [showFeedbacks, setShowFeedbacks] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>('data');
+  const [mail, setMail] = useState<MailState>({
+    toType: 'completed',
+    selectedIds: [],
+    subject: '',
+    body: '',
+    sending: false,
+    result: null,
+    error: '',
+  });
 
   const handleLogin = async (pw?: string) => {
     const usePw = pw ?? pass;
@@ -118,21 +132,16 @@ export default function AdminPage() {
       if (r.ok) {
         setStats(await r.json());
         setAuthed(true);
-        // セッション維持のためlocalStorageに保存
         if (typeof window !== 'undefined') {
           window.localStorage.setItem(STORAGE_KEY_ADMIN_PASS, usePw);
         }
       } else if (r.status === 401 || r.status === 403) {
-        // パスワード不一致のときのみ削除（ネットワークエラー等では削除しない）
         setLoginError('パスワードが違います');
         if (typeof window !== 'undefined') {
           window.localStorage.removeItem(STORAGE_KEY_ADMIN_PASS);
         }
       }
-      // それ以外（5xx等）は何もしない → 次回再訪時に再試行
-    } catch {
-      // ネットワークエラー時は localStorage を消さない → 次回訪問で再試行
-    }
+    } catch {}
   };
 
   useEffect(() => {
@@ -140,14 +149,12 @@ export default function AdminPage() {
     const params = new URLSearchParams(window.location.search);
     const urlPass = params.get('pass');
     const savedPass = window.localStorage.getItem(STORAGE_KEY_ADMIN_PASS);
-
-    // URLパスワード優先、次にlocalStorage保存済みパスワード
     const autoPass = urlPass ?? savedPass;
     if (autoPass) {
       setPass(autoPass);
       void handleLogin(autoPass);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -155,7 +162,6 @@ export default function AdminPage() {
     void loadStats();
     void loadQuestions();
     void loadFeedbacks();
-    // 60秒ごとに自動更新
     const timer = setInterval(() => { void loadStats(); void loadFeedbacks(); }, 60_000);
     return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,10 +186,7 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, pass, unhide }),
       });
-      if (r.ok) {
-        setSelected(null);
-        await loadStats();
-      }
+      if (r.ok) { setSelected(null); await loadStats(); }
     } finally {
       setHidingId(null);
     }
@@ -194,6 +197,7 @@ export default function AdminPage() {
     setShowHidden(next);
     await loadStats(next);
   };
+
   const loadFeedbacks = async () => {
     try {
       const r = await fetch(`/api/admin/feedbacks?pass=${encodeURIComponent(pass)}`);
@@ -212,6 +216,40 @@ export default function AdminPage() {
         if (Array.isArray(data.questions)) setQuestions(data.questions);
       }
     } catch {}
+  };
+
+  // メール送信先をIDで個別指定してメールタブに移動
+  const openMailForUser = (id: string) => {
+    setMail(m => ({ ...m, toType: 'selected', selectedIds: [id], result: null, error: '' }));
+    setActiveTab('mail');
+  };
+
+  const sendMail = async () => {
+    if (!mail.subject.trim() || !mail.body.trim()) {
+      setMail(m => ({ ...m, error: '件名と本文を入力してください' }));
+      return;
+    }
+    if (mail.toType === 'selected' && mail.selectedIds.length === 0) {
+      setMail(m => ({ ...m, error: '送信先を選択してください' }));
+      return;
+    }
+    setMail(m => ({ ...m, sending: true, error: '', result: null }));
+    try {
+      const to = mail.toType === 'selected' ? mail.selectedIds : mail.toType;
+      const r = await fetch('/api/admin/send-mail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pass, to, subject: mail.subject, body: mail.body }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setMail(m => ({ ...m, result: { sent: d.sent, failed: d.failed, total: d.total }, sending: false }));
+      } else {
+        setMail(m => ({ ...m, error: d.error ?? '送信失敗', sending: false }));
+      }
+    } catch (e) {
+      setMail(m => ({ ...m, error: String(e), sending: false }));
+    }
   };
 
   if (!authed) {
@@ -248,7 +286,6 @@ export default function AdminPage() {
   const qMap: Record<string, QuestionDef> = {};
   for (const q of questions) qMap[q.id] = q;
 
-  // 直近14日の日次集計（14日に絞ることでバーを太く・視認性向上）
   const dailyApiCost: Record<string, number> = {};
   const dailyDownloads: Record<string, number> = {};
   const dailyRegs14: Record<string, number> = {};
@@ -264,9 +301,7 @@ export default function AdminPage() {
   for (const r of stats.rows) {
     if (r.completed_at) {
       const d = r.completed_at.slice(0, 10);
-      if (d in dailyApiCost) {
-        dailyApiCost[d] = Number((dailyApiCost[d] + (r.api_cost_usd ?? 0)).toFixed(4));
-      }
+      if (d in dailyApiCost) dailyApiCost[d] = Number((dailyApiCost[d] + (r.api_cost_usd ?? 0)).toFixed(4));
     }
     if (r.last_downloaded_at && (r.download_count ?? 0) > 0) {
       const d = r.last_downloaded_at.slice(0, 10);
@@ -274,19 +309,33 @@ export default function AdminPage() {
     }
   }
 
+  const completedRows = stats.rows.filter(r => r.status === 'completed' && r.email);
+  const mailTargetCount =
+    mail.toType === 'completed' ? completedRows.length :
+    mail.toType === 'all' ? stats.rows.filter(r => r.email).length :
+    mail.selectedIds.length;
+
+  const TABS: { id: TabId; label: string; badge?: number }[] = [
+    { id: 'data', label: '診断データ', badge: stats.rows.length },
+    { id: 'feedbacks', label: '感想', badge: feedbacks.length },
+    { id: 'mail', label: 'メール配信' },
+    { id: 'pages', label: 'ページ管理' },
+  ];
+
   return (
     <main className="min-h-screen bg-navy-deep text-offwhite px-4 py-6">
       <div className="max-w-7xl mx-auto space-y-5">
+
+        {/* ヘッダー */}
         <header className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-gold/20">
-          <h1 className="text-2xl font-bold text-gold">診断データ管理</h1>
+          <h1 className="text-2xl font-bold text-gold">DNA SHINDAN AI 管理</h1>
           <div className="flex items-center gap-2">
             <a
               href="https://supabase.com/dashboard/project/utcsldezxxjeednyxovs/editor"
-              target="_blank"
-              rel="noopener noreferrer"
+              target="_blank" rel="noopener noreferrer"
               className="border border-gold/40 text-gold px-3 py-1.5 rounded-lg text-sm hover:bg-gold/10"
             >
-              DBを開く（メールアドレス一覧）
+              DBを開く
             </a>
             <button
               onClick={() => void handleToggleShowHidden()}
@@ -300,315 +349,466 @@ export default function AdminPage() {
           </div>
         </header>
 
-        {/* 直近30日グラフ — トップ */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <DailyBarChart
-            title="新規登録（14日）"
-            data={dailyRegs14}
-            formatValue={(n) => `${n}件`}
-            total={`${Object.values(dailyRegs14).reduce((a, b) => a + b, 0)}件 / 14日`}
-          />
-          <DailyBarChart
-            title="PDFダウンロード（日次）"
-            data={dailyDownloads}
-            formatValue={(n) => `${n}人`}
-            total={`${Object.values(dailyDownloads).reduce((a, b) => a + b, 0)}人 / 30日`}
-            color="bg-blue-400"
-          />
-          <DailyBarChart
-            title="API使用量（日次・$）"
-            data={dailyApiCost}
-            formatValue={(n) => `$${n.toFixed(3)}`}
-            total={`$${Object.values(dailyApiCost).reduce((a, b) => a + b, 0).toFixed(3)} / 30日`}
-            color="bg-emerald-400"
-          />
-        </section>
-
-        {/* コンパクトKPI — 1行 */}
+        {/* KPI帯 */}
         <section className={`flex flex-wrap gap-x-6 gap-y-1 items-center px-4 py-3 rounded-xl border text-sm ${stats.summary.alert ? 'border-red-500/50 bg-red-900/10' : 'border-gold/20 bg-navy-soft/30'}`}>
           <MiniKPI label="総数" value={`${stats.summary.total}件`} />
           <MiniKPI label="完了" value={`${stats.statusBreakdown['completed'] ?? 0}件`} accent />
-          <MiniKPI label="処理中/未完" value={`${stats.summary.total - (stats.statusBreakdown['completed'] ?? 0)}件`} />
+          <MiniKPI label="未完" value={`${stats.summary.total - (stats.statusBreakdown['completed'] ?? 0)}件`} />
           <MiniKPI label="DL" value={`${stats.summary.totalDownloads}回`} />
-          <MiniKPI label="チャット" value={`${stats.summary.totalChats}回`} />
+          <MiniKPI label="Chat" value={`${stats.summary.totalChats}回`} />
           <span className="text-offwhite-dim/30 hidden sm:inline">|</span>
-          <MiniKPI label="API使用" value={`$${stats.summary.totalCost.toFixed(2)} / $${stats.summary.apiBudgetUsd} (${stats.summary.apiUsagePercent}%)`} warn={stats.summary.alert} />
+          <MiniKPI label="API" value={`$${stats.summary.totalCost.toFixed(2)} / $${stats.summary.apiBudgetUsd} (${stats.summary.apiUsagePercent}%)`} warn={stats.summary.alert} />
           {stats.summary.alert && <span className="text-red-300 text-xs font-bold">{stats.summary.alertThresholdPercent}%超過</span>}
         </section>
 
-        {/* 関係性タグ — 人数のみ */}
-        {Object.keys(stats.relationBreakdown).length > 0 && (
-          <section className="flex flex-wrap gap-2 px-4 py-2 rounded-xl border border-gold/15 bg-navy-soft/20">
-            <span className="text-[11px] text-offwhite-dim/50 self-center mr-1">関係性</span>
-            {Object.entries(stats.relationBreakdown).map(([tag, cnt]) => (
-              <span key={tag} className="text-[11px] text-offwhite-dim bg-navy-deep/40 border border-offwhite-dim/15 rounded px-2 py-0.5">
-                {toRelLabel(tag)} <span className="text-gold font-bold">{cnt}</span>
-              </span>
-            ))}
+        {/* タブナビゲーション */}
+        <nav className="flex gap-1 border-b border-gold/20">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+                activeTab === tab.id
+                  ? 'bg-gold/15 text-gold border border-gold/30 border-b-0 -mb-px'
+                  : 'text-offwhite-dim hover:text-offwhite hover:bg-navy-soft/40'
+              }`}
+            >
+              {tab.label}
+              {tab.badge !== undefined && tab.badge > 0 && (
+                <span className={`ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-gold/30 text-gold' : 'bg-offwhite-dim/20 text-offwhite-dim/70'}`}>
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {/* ── TAB: 診断データ ── */}
+        {activeTab === 'data' && (
+          <>
+            {/* グラフ */}
+            <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <DailyBarChart title="新規登録（14日）" data={dailyRegs14} formatValue={(n) => `${n}件`} total={`${Object.values(dailyRegs14).reduce((a,b)=>a+b,0)}件 / 14日`} />
+              <DailyBarChart title="PDFダウンロード（日次）" data={dailyDownloads} formatValue={(n) => `${n}人`} total={`${Object.values(dailyDownloads).reduce((a,b)=>a+b,0)}人 / 14日`} color="bg-blue-400" />
+              <DailyBarChart title="API使用量（日次・$）" data={dailyApiCost} formatValue={(n) => `$${n.toFixed(3)}`} total={`$${Object.values(dailyApiCost).reduce((a,b)=>a+b,0).toFixed(3)} / 14日`} color="bg-emerald-400" />
+            </section>
+
+            {/* 関係性 */}
+            {Object.keys(stats.relationBreakdown).length > 0 && (
+              <section className="flex flex-wrap gap-2 px-4 py-2 rounded-xl border border-gold/15 bg-navy-soft/20">
+                <span className="text-[11px] text-offwhite-dim/50 self-center mr-1">関係性</span>
+                {Object.entries(stats.relationBreakdown).map(([tag, cnt]) => (
+                  <span key={tag} className="text-[11px] text-offwhite-dim bg-navy-deep/40 border border-offwhite-dim/15 rounded px-2 py-0.5">
+                    {toRelLabel(tag)} <span className="text-gold font-bold">{cnt}</span>
+                  </span>
+                ))}
+              </section>
+            )}
+
+            {/* リスト＋詳細 */}
+            <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className={`md:col-span-1 space-y-2 max-h-[80vh] overflow-y-auto pr-1 ${selected !== null ? 'hidden md:block' : 'block'}`}>
+                {stats.rows.map((r, i) => (
+                  <div key={r.id} className={`relative rounded-lg border ${r.hidden_at ? 'border-offwhite-dim/20 opacity-50' : selected === i ? 'border-gold bg-gold/10' : 'border-gold/20 bg-navy-soft/40'}`}>
+                    <button onClick={() => setSelected(i)} className="w-full text-left p-3">
+                      <p className="text-sm text-offwhite font-bold pr-8 flex items-center gap-2">
+                        <span>{[r.last_name, r.first_name].filter(Boolean).join(' ') || r.clone_display_name || '(no-name)'}</span>
+                        {r.hidden_at && <span className="text-[10px] text-offwhite-dim/50 font-normal">非表示</span>}
+                        {(r.feedback_count ?? 0) > 0 && (
+                          <span className="text-[10px] bg-gold/20 text-gold border border-gold/40 rounded px-1 font-bold">感想{r.feedback_count}</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-offwhite-dim">{r.email}</p>
+                      <div className="flex flex-wrap gap-2 text-[10px] text-offwhite-dim/60 mt-1">
+                        <span>状態:{toStatusLabel(r.status ?? '')}</span>
+                        <span>DL:{r.download_count ?? 0}</span>
+                        <span>Chat:{r.chat_count ?? 0}</span>
+                        <span>${(r.api_cost_usd ?? 0).toFixed(2)}</span>
+                      </div>
+                      <p className="text-xs text-gold/60 mt-1">{r.created_at?.slice(0,16).replace('T',' ')}</p>
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); void handleHide(r.id, !!r.hidden_at); }}
+                      disabled={hidingId === r.id}
+                      className="absolute top-2 right-2 text-[10px] text-offwhite-dim/50 hover:text-red-400 px-1.5 py-0.5 rounded border border-transparent hover:border-red-400/40"
+                    >
+                      {hidingId === r.id ? '…' : r.hidden_at ? '再表示' : '非表示'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className={`md:col-span-2 bg-navy-soft/40 border border-gold/20 rounded-xl p-5 space-y-4 max-h-[80vh] overflow-y-auto ${selected !== null ? 'block' : 'hidden md:block'}`}>
+                {sel ? (
+                  <>
+                    <div className="border-b border-gold/20 pb-3 space-y-2">
+                      <button className="md:hidden text-xs text-offwhite-dim border border-offwhite-dim/30 px-3 py-1 rounded-lg mb-2" onClick={() => setSelected(null)}>
+                        ← 一覧に戻る
+                      </button>
+                      <div className="flex flex-wrap gap-2 items-baseline">
+                        <h2 className="text-lg font-bold text-gold">{[sel.last_name, sel.first_name].filter(Boolean).join(' ') || sel.clone_display_name || '(no-name)'}</h2>
+                        <span className="text-xs text-offwhite-dim">{sel.email}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {sel.access_token && sel.status === 'completed' ? (
+                          <a href={`/api/me/${sel.id}/pdf?token=${sel.access_token}`} target="_blank" rel="noopener noreferrer" className="text-xs border border-gold/40 text-gold px-3 py-1 rounded-lg hover:bg-gold/10">
+                            PDFダウンロード
+                          </a>
+                        ) : (
+                          <span className="text-xs text-offwhite-dim/40 border border-offwhite-dim/20 px-3 py-1 rounded-lg">PDF（未完了）</span>
+                        )}
+                        <a href={`/clone/${sel.id}`} target="_blank" rel="noopener noreferrer" className="text-xs border border-gold/40 text-gold px-3 py-1 rounded-lg hover:bg-gold/10">
+                          分身AIを開く
+                        </a>
+                        <a href={`/me/${sel.id}`} target="_blank" rel="noopener noreferrer" className="text-xs border border-offwhite-dim/30 text-offwhite-dim px-3 py-1 rounded-lg hover:bg-offwhite-dim/10">
+                          マイページ
+                        </a>
+                        {/* 個別メール送信 */}
+                        {sel.email && (
+                          <button
+                            onClick={() => openMailForUser(sel.id)}
+                            className="text-xs border border-blue-400/40 text-blue-300 px-3 py-1 rounded-lg hover:bg-blue-400/10"
+                          >
+                            メール送信
+                          </button>
+                        )}
+                        <button
+                          onClick={() => void handleHide(sel.id, !!sel.hidden_at)}
+                          disabled={hidingId === sel.id}
+                          className={`text-xs border px-3 py-1 rounded-lg ${sel.hidden_at ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/10' : 'border-red-400/40 text-red-400 hover:bg-red-400/10'}`}
+                        >
+                          {hidingId === sel.id ? '処理中…' : sel.hidden_at ? '再表示する' : '非表示にする'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <KV label="状態" value={toStatusLabel(sel.status ?? '')} />
+                      <KV label="関係性" value={toRelLabel(sel.relationship_tag ?? '—')} />
+                      <KV label="DL回数" value={(sel.download_count ?? 0).toString()} />
+                      <KV label="Chat回数" value={(sel.chat_count ?? 0).toString()} />
+                      <KV label="APIコスト" value={`$${(sel.api_cost_usd ?? 0).toFixed(3)}`} />
+                      <KV label="登録" value={sel.created_at?.slice(0,16).replace('T',' ') ?? '—'} />
+                      <KV label="完了" value={sel.completed_at?.slice(0,16).replace('T',' ') ?? '—'} />
+                      <KV label="最終DL" value={sel.last_downloaded_at?.slice(0,16).replace('T',' ') ?? '—'} />
+                    </div>
+
+                    <details open className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
+                      <summary className="cursor-pointer text-sm font-bold text-gold/80">選択回答（Q5〜Q30）</summary>
+                      <div className="mt-3 space-y-2 text-xs">
+                        {Object.entries(sel.select_answers ?? {}).map(([qid, choiceId]) => {
+                          const q = qMap[qid];
+                          const choice = q?.choices?.find((c) => c.id === choiceId);
+                          return (
+                            <div key={qid} className="bg-navy-deep/60 rounded p-2 border border-offwhite-dim/10">
+                              <p className="text-gold/70 font-bold">{qid}: {q?.prompt ?? q?.title ?? '(質問定義なし)'}</p>
+                              <p className="text-offwhite mt-1">→ <span className="text-gold">{choiceId}</span>. {choice?.text ?? '(選択肢定義なし)'}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
+
+                    <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
+                      <summary className="cursor-pointer text-sm font-bold text-gold/80">本人の自由記述（Q31〜Q37）</summary>
+                      <div className="mt-3 space-y-3 text-xs">
+                        {Object.entries(sel.narrative_answers ?? {}).map(([qid, txt]) => {
+                          const q = qMap[qid];
+                          return (
+                            <div key={qid}>
+                              <p className="text-gold/70 font-bold">{qid}: {q?.prompt ?? q?.title ?? ''}</p>
+                              <p className="text-offwhite-dim mt-1 whitespace-pre-wrap bg-navy-deep/60 p-2 rounded">{txt}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </details>
+
+                    {(() => {
+                      const selFeedbacks = feedbacks.filter(f => f.diagnosis_id === sel.id);
+                      if (selFeedbacks.length === 0) return null;
+                      return (
+                        <details open className="bg-navy-deep/40 border border-gold/30 rounded-lg p-3">
+                          <summary className="cursor-pointer text-sm font-bold text-gold">感想（{selFeedbacks.length}件）</summary>
+                          <div className="mt-3 space-y-3">
+                            {selFeedbacks.map(f => (
+                              <div key={f.id} className="bg-navy-deep/60 rounded p-3 border border-offwhite-dim/10">
+                                <p className="text-[10px] text-offwhite-dim/50 mb-1">{f.created_at?.slice(0,16).replace('T',' ')}</p>
+                                <p className="text-sm text-offwhite whitespace-pre-wrap leading-relaxed">{f.message}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      );
+                    })()}
+
+                    {sel.style_sample && (
+                      <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
+                        <summary className="cursor-pointer text-sm font-bold text-gold/80">文体サンプル（Q38）</summary>
+                        <p className="text-xs text-offwhite-dim mt-2 whitespace-pre-wrap bg-navy-deep/60 p-2 rounded">{sel.style_sample}</p>
+                      </details>
+                    )}
+
+                    <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
+                      <summary className="cursor-pointer text-sm font-bold text-gold/80">心理スコア</summary>
+                      <pre className="text-[10px] text-offwhite-dim mt-2 bg-navy-deep/60 p-2 rounded overflow-x-auto max-h-72">{JSON.stringify(sel.scores, null, 2)}</pre>
+                    </details>
+                    <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
+                      <summary className="cursor-pointer text-sm font-bold text-gold/80">命術16結果</summary>
+                      <pre className="text-[10px] text-offwhite-dim mt-2 bg-navy-deep/60 p-2 rounded overflow-x-auto max-h-72">{JSON.stringify(sel.celestial_results, null, 2)}</pre>
+                    </details>
+
+                    {sel.report_text && Object.keys(sel.report_text).length > 0 && (
+                      <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
+                        <summary className="cursor-pointer text-sm font-bold text-gold/80">LLM生成レポート全文（章別）</summary>
+                        <div className="mt-3 space-y-3 text-xs">
+                          {Object.entries(sel.report_text).map(([k, v]) => (
+                            <div key={k}>
+                              <p className="text-gold font-bold mb-1">{k}（{v?.length ?? 0} 字）</p>
+                              <p className="text-offwhite-dim whitespace-pre-wrap bg-navy-deep/60 p-2 rounded leading-relaxed">{v}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-offwhite-dim text-center py-12 text-sm">左のリストから選択してください</p>
+                )}
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* ── TAB: 感想 ── */}
+        {activeTab === 'feedbacks' && (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-gold">感想一覧 <span className="text-offwhite-dim/60 font-normal ml-2">{feedbacks.length}件</span></h2>
+              <button onClick={() => void loadFeedbacks()} className="text-xs border border-gold/40 text-gold px-3 py-1.5 rounded-lg hover:bg-gold/10">再読み込み</button>
+            </div>
+            {feedbacks.length === 0 ? (
+              <p className="text-offwhite-dim/50 text-sm text-center py-16">まだ感想はありません</p>
+            ) : (
+              <div className="space-y-3">
+                {feedbacks.map(f => {
+                  const diag = f.dna_diagnoses;
+                  const name = [diag?.last_name, diag?.first_name].filter(Boolean).join(' ') || diag?.clone_display_name || '(no-name)';
+                  return (
+                    <div key={f.id} className="bg-navy-soft/40 border border-gold/15 rounded-xl px-5 py-4 hover:border-gold/30">
+                      <div className="flex flex-wrap items-baseline gap-3 mb-2">
+                        <span className="text-sm font-bold text-offwhite">{name}</span>
+                        <span className="text-[11px] text-offwhite-dim/50">{diag?.email}</span>
+                        <span className="text-[11px] text-offwhite-dim/40 ml-auto">{f.created_at?.slice(0,16).replace('T',' ')}</span>
+                      </div>
+                      <p className="text-sm text-offwhite-dim leading-relaxed whitespace-pre-wrap">{f.message}</p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => {
+                            const row = stats?.rows.find(r => r.id === f.diagnosis_id);
+                            if (row) {
+                              const idx = stats!.rows.indexOf(row);
+                              setSelected(idx);
+                              setActiveTab('data');
+                            }
+                          }}
+                          className="text-[11px] text-gold/60 hover:text-gold"
+                        >
+                          診断データを見る →
+                        </button>
+                        {diag?.email && (
+                          <button
+                            onClick={() => openMailForUser(f.diagnosis_id)}
+                            className="text-[11px] text-blue-300/60 hover:text-blue-300"
+                          >
+                            メール送信 →
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
         )}
 
-        {/* 診断リスト＋詳細 */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* モバイル: 詳細表示中はリスト非表示 / デスクトップ: 常に表示 */}
-          <div className={`md:col-span-1 space-y-2 max-h-[80vh] overflow-y-auto pr-1 ${selected !== null ? 'hidden md:block' : 'block'}`}>
-            {stats.rows.map((r, i) => (
-              <div key={r.id} className={`relative rounded-lg border ${r.hidden_at ? 'border-offwhite-dim/20 opacity-50' : selected === i ? 'border-gold bg-gold/10' : 'border-gold/20 bg-navy-soft/40'}`}>
-                <button
-                  onClick={() => setSelected(i)}
-                  className="w-full text-left p-3"
-                >
-                  <p className="text-sm text-offwhite font-bold pr-8 flex items-center gap-2">
-                    <span>{[r.last_name, r.first_name].filter(Boolean).join(' ') || r.clone_display_name || '(no-name)'}</span>
-                    {r.hidden_at && <span className="text-[10px] text-offwhite-dim/50 font-normal">非表示</span>}
-                    {(r.feedback_count ?? 0) > 0 && (
-                      <span className="text-[10px] bg-gold/20 text-gold border border-gold/40 rounded px-1 font-bold">感想{r.feedback_count}</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-offwhite-dim">{r.email}</p>
-                  <div className="flex flex-wrap gap-2 text-[10px] text-offwhite-dim/60 mt-1">
-                    <span>状態:{toStatusLabel(r.status ?? '')}</span>
-                    <span>DL:{r.download_count ?? 0}</span>
-                    <span>Chat:{r.chat_count ?? 0}</span>
-                    <span>${(r.api_cost_usd ?? 0).toFixed(2)}</span>
+        {/* ── TAB: メール配信 ── */}
+        {activeTab === 'mail' && (
+          <section className="max-w-2xl space-y-5">
+            <h2 className="text-sm font-bold text-gold">メール配信</h2>
+
+            {/* 宛先 */}
+            <div className="bg-navy-soft/40 border border-gold/20 rounded-xl p-5 space-y-4">
+              <div>
+                <label className="text-xs text-offwhite-dim/70 uppercase tracking-wider mb-2 block">宛先</label>
+                <div className="flex gap-2 flex-wrap">
+                  {([
+                    { value: 'completed', label: `完了者のみ（${completedRows.length}名）` },
+                    { value: 'all', label: `全員（${stats.rows.filter(r=>r.email).length}名）` },
+                    { value: 'selected', label: mail.selectedIds.length > 0 ? `選択中（${mail.selectedIds.length}名）` : '個別選択' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setMail(m => ({ ...m, toType: opt.value }))}
+                      className={`px-4 py-2 rounded-lg text-sm border ${mail.toType === opt.value ? 'border-gold bg-gold/15 text-gold' : 'border-offwhite-dim/30 text-offwhite-dim hover:border-gold/50'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {mail.toType === 'selected' && (
+                  <div className="mt-3">
+                    <p className="text-xs text-offwhite-dim/60 mb-2">診断データタブで対象者を選び「メール送信」ボタンを押すか、IDを直接入力</p>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {stats.rows.filter(r => r.email).map(r => {
+                        const isSelected = mail.selectedIds.includes(r.id);
+                        const name = [r.last_name, r.first_name].filter(Boolean).join(' ') || r.email || r.id;
+                        return (
+                          <label key={r.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-navy-soft/40 px-2 py-1 rounded">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => setMail(m => ({
+                                ...m,
+                                selectedIds: isSelected
+                                  ? m.selectedIds.filter(id => id !== r.id)
+                                  : [...m.selectedIds, r.id],
+                              }))}
+                              className="accent-gold"
+                            />
+                            <span className="text-offwhite">{name}</span>
+                            <span className="text-offwhite-dim/50 ml-1">{r.email}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <p className="text-xs text-gold/60 mt-1">{r.created_at?.slice(0, 16).replace('T', ' ')}</p>
+                )}
+              </div>
+
+              {/* 件名 */}
+              <div>
+                <label className="text-xs text-offwhite-dim/70 uppercase tracking-wider mb-1.5 block">件名</label>
+                <input
+                  type="text"
+                  value={mail.subject}
+                  onChange={e => setMail(m => ({ ...m, subject: e.target.value }))}
+                  placeholder="例：【DNA診断AI】重要なお知らせ"
+                  className="w-full bg-navy-deep/60 border border-gold/30 rounded-lg px-4 py-2.5 text-offwhite text-sm focus:border-gold outline-none"
+                />
+              </div>
+
+              {/* 本文 */}
+              <div>
+                <label className="text-xs text-offwhite-dim/70 uppercase tracking-wider mb-1.5 block">
+                  本文
+                  <span className="text-offwhite-dim/40 font-normal ml-2 normal-case">プレースホルダー: {`{{name}}`} {`{{firstName}}`} {`{{myPageUrl}}`}</span>
+                </label>
+                <textarea
+                  value={mail.body}
+                  onChange={e => setMail(m => ({ ...m, body: e.target.value }))}
+                  rows={12}
+                  placeholder={`{{name}}\n\nいつもDNA診断AIをご利用いただきありがとうございます。\n\nマイページはこちらからアクセスできます：\n{{myPageUrl}}\n\n— DNA診断AI`}
+                  className="w-full bg-navy-deep/60 border border-gold/30 rounded-lg px-4 py-3 text-offwhite text-sm focus:border-gold outline-none resize-y font-mono leading-relaxed"
+                />
+              </div>
+
+              {/* エラー・結果 */}
+              {mail.error && <p className="text-red-300 text-sm">{mail.error}</p>}
+              {mail.result && (
+                <div className={`rounded-lg p-4 text-sm ${mail.result.failed > 0 ? 'bg-amber-900/20 border border-amber-400/30' : 'bg-emerald-900/20 border border-emerald-400/30'}`}>
+                  <p className={`font-bold ${mail.result.failed > 0 ? 'text-amber-300' : 'text-emerald-300'}`}>
+                    送信完了: {mail.result.sent}件成功 / {mail.result.failed}件失敗 / 合計{mail.result.total}件
+                  </p>
+                </div>
+              )}
+
+              {/* 送信ボタン */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => void sendMail()}
+                  disabled={mail.sending || !mail.subject.trim() || !mail.body.trim() || mailTargetCount === 0}
+                  className="px-6 py-2.5 bg-gold text-navy-deep font-bold rounded-lg hover:bg-gold-light disabled:opacity-40 text-sm"
+                >
+                  {mail.sending ? `送信中…` : `${mailTargetCount}名に送信`}
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); void handleHide(r.id, !!r.hidden_at); }}
-                  disabled={hidingId === r.id}
-                  title={r.hidden_at ? '再表示する' : '非表示にする'}
-                  className="absolute top-2 right-2 text-[10px] text-offwhite-dim/50 hover:text-red-400 px-1.5 py-0.5 rounded border border-transparent hover:border-red-400/40"
+                  onClick={() => setMail(m => ({ ...m, subject: '', body: '', result: null, error: '' }))}
+                  className="px-4 py-2.5 border border-offwhite-dim/30 text-offwhite-dim rounded-lg text-sm hover:border-gold/40"
                 >
-                  {hidingId === r.id ? '…' : r.hidden_at ? '再表示' : '非表示'}
+                  クリア
                 </button>
               </div>
-            ))}
-          </div>
-
-          {/* モバイル: 詳細選択時のみ表示 / デスクトップ: 常に表示 */}
-          <div className={`md:col-span-2 bg-navy-soft/40 border border-gold/20 rounded-xl p-5 space-y-4 max-h-[80vh] overflow-y-auto ${selected !== null ? 'block' : 'hidden md:block'}`}>
-            {sel ? (
-              <>
-                <div className="border-b border-gold/20 pb-3 space-y-2">
-                  {/* モバイル専用「← 戻る」ボタン */}
-                  <button
-                    className="md:hidden text-xs text-offwhite-dim border border-offwhite-dim/30 px-3 py-1 rounded-lg mb-2"
-                    onClick={() => setSelected(null)}
-                  >
-                    ← 一覧に戻る
-                  </button>
-                  <div className="flex flex-wrap gap-2 items-baseline">
-                    {/* admin は YO 本人専用画面なので本名OK（公開URLは clone_display_name のまま） */}
-                    <h2 className="text-lg font-bold text-gold">{[sel.last_name, sel.first_name].filter(Boolean).join(' ') || sel.clone_display_name || '(no-name)'}</h2>
-                    <span className="text-xs text-offwhite-dim">{sel.email}</span>
-                  </div>
-                  {/* PDF・分身AIリンク */}
-                  <div className="flex flex-wrap gap-2">
-                    {sel.access_token && sel.status === 'completed' ? (
-                      <a
-                        href={`/api/me/${sel.id}/pdf?token=${sel.access_token}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs border border-gold/40 text-gold px-3 py-1 rounded-lg hover:bg-gold/10"
-                      >
-                        PDFダウンロード
-                      </a>
-                    ) : (
-                      <span className="text-xs text-offwhite-dim/40 border border-offwhite-dim/20 px-3 py-1 rounded-lg">PDF（未完了）</span>
-                    )}
-                    <a
-                      href={`/clone/${sel.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs border border-gold/40 text-gold px-3 py-1 rounded-lg hover:bg-gold/10"
-                    >
-                      分身AIを開く
-                    </a>
-                    <a
-                      href={`/me/${sel.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs border border-offwhite-dim/30 text-offwhite-dim px-3 py-1 rounded-lg hover:bg-offwhite-dim/10"
-                    >
-                      マイページ
-                    </a>
-                    <button
-                      onClick={() => void handleHide(sel.id, !!sel.hidden_at)}
-                      disabled={hidingId === sel.id}
-                      className={`text-xs border px-3 py-1 rounded-lg ${sel.hidden_at ? 'border-amber-400/40 text-amber-400 hover:bg-amber-400/10' : 'border-red-400/40 text-red-400 hover:bg-red-400/10'}`}
-                    >
-                      {hidingId === sel.id ? '処理中…' : sel.hidden_at ? '再表示する' : '非表示にする'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <KV label="状態" value={toStatusLabel(sel.status ?? '')} />
-                  <KV label="関係性" value={toRelLabel(sel.relationship_tag ?? '—')} />
-                  <KV label="DL回数" value={(sel.download_count ?? 0).toString()} />
-                  <KV label="Chat回数" value={(sel.chat_count ?? 0).toString()} />
-                  <KV label="APIコスト" value={`$${(sel.api_cost_usd ?? 0).toFixed(3)}`} />
-                  <KV label="登録" value={sel.created_at?.slice(0, 16).replace('T', ' ') ?? '—'} />
-                  <KV label="完了" value={sel.completed_at?.slice(0, 16).replace('T', ' ') ?? '—'} />
-                  <KV label="最終DL" value={sel.last_downloaded_at?.slice(0, 16).replace('T', ' ') ?? '—'} />
-                </div>
-
-                {/* 質問×回答 */}
-                <details open className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
-                  <summary className="cursor-pointer text-sm font-bold text-gold/80">選択回答（Q5〜Q30）— 質問×選択肢を表示</summary>
-                  <div className="mt-3 space-y-2 text-xs">
-                    {Object.entries(sel.select_answers ?? {}).map(([qid, choiceId]) => {
-                      const q = qMap[qid];
-                      const choice = q?.choices?.find((c) => c.id === choiceId);
-                      return (
-                        <div key={qid} className="bg-navy-deep/60 rounded p-2 border border-offwhite-dim/10">
-                          <p className="text-gold/70 font-bold">{qid}: {q?.prompt ?? q?.title ?? '(質問定義なし)'}</p>
-                          <p className="text-offwhite mt-1">→ <span className="text-gold">{choiceId}</span>. {choice?.text ?? '(選択肢定義なし)'}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </details>
-
-                {/* 本人の自由記述 */}
-                <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
-                  <summary className="cursor-pointer text-sm font-bold text-gold/80">本人の自由記述（Q31〜Q37）</summary>
-                  <div className="mt-3 space-y-3 text-xs">
-                    {Object.entries(sel.narrative_answers ?? {}).map(([qid, txt]) => {
-                      const q = qMap[qid];
-                      return (
-                        <div key={qid}>
-                          <p className="text-gold/70 font-bold">{qid}: {q?.prompt ?? q?.title ?? ''}</p>
-                          <p className="text-offwhite-dim mt-1 whitespace-pre-wrap bg-navy-deep/60 p-2 rounded">{txt}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </details>
-
-                {/* 感想 */}
-                {(() => {
-                  const selFeedbacks = feedbacks.filter(f => f.diagnosis_id === sel.id);
-                  if (selFeedbacks.length === 0) return null;
-                  return (
-                    <details open className="bg-navy-deep/40 border border-gold/30 rounded-lg p-3">
-                      <summary className="cursor-pointer text-sm font-bold text-gold">感想（{selFeedbacks.length}件）</summary>
-                      <div className="mt-3 space-y-3">
-                        {selFeedbacks.map(f => (
-                          <div key={f.id} className="bg-navy-deep/60 rounded p-3 border border-offwhite-dim/10">
-                            <p className="text-[10px] text-offwhite-dim/50 mb-1">{f.created_at?.slice(0,16).replace('T',' ')}</p>
-                            <p className="text-sm text-offwhite whitespace-pre-wrap leading-relaxed">{f.message}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  );
-                })()}
-
-                {/* 文体 */}
-                {sel.style_sample && (
-                  <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
-                    <summary className="cursor-pointer text-sm font-bold text-gold/80">文体サンプル（Q38）</summary>
-                    <p className="text-xs text-offwhite-dim mt-2 whitespace-pre-wrap bg-navy-deep/60 p-2 rounded">{sel.style_sample}</p>
-                  </details>
-                )}
-
-                {/* スコア・命術 */}
-                <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
-                  <summary className="cursor-pointer text-sm font-bold text-gold/80">心理スコア</summary>
-                  <pre className="text-[10px] text-offwhite-dim mt-2 bg-navy-deep/60 p-2 rounded overflow-x-auto max-h-72">
-                    {JSON.stringify(sel.scores, null, 2)}
-                  </pre>
-                </details>
-                <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
-                  <summary className="cursor-pointer text-sm font-bold text-gold/80">命術16結果</summary>
-                  <pre className="text-[10px] text-offwhite-dim mt-2 bg-navy-deep/60 p-2 rounded overflow-x-auto max-h-72">
-                    {JSON.stringify(sel.celestial_results, null, 2)}
-                  </pre>
-                </details>
-
-                {/* レポート全文 */}
-                {sel.report_text && Object.keys(sel.report_text).length > 0 && (
-                  <details className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
-                    <summary className="cursor-pointer text-sm font-bold text-gold/80">LLM生成レポート全文（章別）</summary>
-                    <div className="mt-3 space-y-3 text-xs">
-                      {Object.entries(sel.report_text).map(([k, v]) => (
-                        <div key={k}>
-                          <p className="text-gold font-bold mb-1">{k}（{v?.length ?? 0} 字）</p>
-                          <p className="text-offwhite-dim whitespace-pre-wrap bg-navy-deep/60 p-2 rounded leading-relaxed">{v}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </>
-            ) : (
-              <p className="text-offwhite-dim text-center py-12 text-sm">左のリストから選択してください</p>
-            )}
-          </div>
-        </section>
-
-        {/* 感想一覧（全件） */}
-        <section className="border border-gold/20 rounded-2xl overflow-hidden">
-          <button
-            onClick={() => setShowFeedbacks(v => !v)}
-            className="w-full flex items-center justify-between px-5 py-3 bg-navy-soft/40 hover:bg-navy-soft/60 text-left"
-          >
-            <span className="text-sm font-bold text-gold">
-              感想一覧 <span className="ml-2 text-offwhite-dim/60 font-normal">{feedbacks.length}件</span>
-            </span>
-            <span className="text-offwhite-dim/50 text-xs">{showFeedbacks ? '閉じる' : '開く'}</span>
-          </button>
-          {showFeedbacks && (
-            <div className="divide-y divide-gold/10">
-              {feedbacks.length === 0 ? (
-                <p className="px-5 py-8 text-sm text-offwhite-dim/50 text-center">まだ感想はありません</p>
-              ) : feedbacks.map(f => {
-                const diag = f.dna_diagnoses;
-                const name = [diag?.last_name, diag?.first_name].filter(Boolean).join(' ') || diag?.clone_display_name || '(no-name)';
-                return (
-                  <div key={f.id} className="px-5 py-4 bg-navy-soft/20 hover:bg-navy-soft/40">
-                    <div className="flex flex-wrap items-baseline gap-3 mb-2">
-                      <span className="text-sm font-bold text-offwhite">{name}</span>
-                      <span className="text-[11px] text-offwhite-dim/50">{diag?.email}</span>
-                      <span className="text-[11px] text-offwhite-dim/40 ml-auto">{f.created_at?.slice(0,16).replace('T',' ')}</span>
-                    </div>
-                    <p className="text-sm text-offwhite-dim leading-relaxed whitespace-pre-wrap">{f.message}</p>
-                  </div>
-                );
-              })}
             </div>
-          )}
-        </section>
+
+            {/* 過去テンプレート */}
+            <div className="bg-navy-soft/40 border border-gold/15 rounded-xl p-5 space-y-3">
+              <h3 className="text-xs text-gold/70 uppercase tracking-wider">クイックテンプレート</h3>
+              <div className="space-y-2">
+                {[
+                  {
+                    label: 'レポート完成通知',
+                    subject: '【DNA診断AI】あなたのレポートが完成しました',
+                    body: `{{name}}\n\nお待たせしました。\nあなたのDNA診断レポートが完成しました。\n\n▼ マイページ（PDF・分身AIボット）\n{{myPageUrl}}\n\n— DNA診断AI`,
+                  },
+                  {
+                    label: 'フォローアップ',
+                    subject: '【DNA診断AI】レポートはご覧いただけましたか？',
+                    body: `{{name}}\n\nDNA診断AIをご利用いただきありがとうございます。\n\nレポートや分身AIボットはご活用いただいていますか？\nご感想やご質問があれば、このメールにご返信ください。\n\n▼ マイページ\n{{myPageUrl}}\n\n— DNA診断AI`,
+                  },
+                ].map(t => (
+                  <button
+                    key={t.label}
+                    onClick={() => setMail(m => ({ ...m, subject: t.subject, body: t.body, result: null, error: '' }))}
+                    className="w-full text-left px-4 py-2.5 border border-gold/15 rounded-lg text-sm text-offwhite-dim hover:border-gold/40 hover:text-offwhite"
+                  >
+                    <span className="text-gold/70 font-medium">{t.label}</span>
+                    <span className="text-offwhite-dim/40 ml-2 text-xs">{t.subject}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── TAB: ページ管理 ── */}
+        {activeTab === 'pages' && (
+          <section className="max-w-2xl space-y-4">
+            <h2 className="text-sm font-bold text-gold">ページ管理</h2>
+            <div className="bg-navy-soft/40 border border-gold/20 rounded-xl p-8 text-center space-y-3">
+              <p className="text-offwhite-dim">診断フォームの質問文・選択肢を編集できる機能は次フェーズで実装します。</p>
+              <p className="text-offwhite-dim/50 text-sm">現在の質問定義: {questions.length}件読み込み済み</p>
+              <div className="text-left mt-4 space-y-2 max-h-96 overflow-y-auto">
+                {questions.slice(0, 10).map(q => (
+                  <div key={q.id} className="bg-navy-deep/40 rounded p-3 border border-offwhite-dim/10">
+                    <p className="text-xs text-gold/70 font-bold">{q.id}</p>
+                    <p className="text-sm text-offwhite mt-0.5">{q.prompt ?? q.title ?? '(定義なし)'}</p>
+                    {q.choices && <p className="text-[10px] text-offwhite-dim/50 mt-1">選択肢 {q.choices.length}件</p>}
+                  </div>
+                ))}
+                {questions.length > 10 && <p className="text-xs text-offwhite-dim/40 text-center">…他 {questions.length - 10}件</p>}
+              </div>
+            </div>
+          </section>
+        )}
+
       </div>
     </main>
   );
 }
 
-function DailyBarChart({
-  title,
-  data,
-  formatValue,
-  total,
-  color = 'bg-gold',
-}: {
-  title: string;
-  data: Record<string, number>;
-  formatValue: (n: number) => string;
-  total: string;
-  color?: string;
+function DailyBarChart({ title, data, formatValue, total, color = 'bg-gold' }: {
+  title: string; data: Record<string, number>; formatValue: (n: number) => string; total: string; color?: string;
 }) {
-  const entries = Object.entries(data).reverse(); // 古い順
+  const entries = Object.entries(data).reverse();
   const max = Math.max(...entries.map(([, n]) => n));
   const hasData = max > 0;
   const todayKey = new Date().toISOString().slice(0, 10);
   return (
     <div className="bg-navy-soft/40 border border-gold/20 rounded-2xl p-4">
       <h2 className="text-sm font-bold text-gold mb-1">{title}</h2>
-      {!hasData && (
-        <p className="text-[10px] text-offwhite-dim/40 mb-2">データ収集中</p>
-      )}
+      {!hasData && <p className="text-[10px] text-offwhite-dim/40 mb-2">データ収集中</p>}
       <div className="flex items-end gap-[2px] h-24">
         {entries.map(([d, n]) => {
           const isToday = d === todayKey;
@@ -620,10 +820,7 @@ function DailyBarChart({
                   {d.slice(5)} {formatValue(n)}
                 </span>
               )}
-              <div
-                className={`w-full rounded-sm ${n > 0 ? color : 'bg-offwhite-dim/5'} ${isToday && n > 0 ? 'ring-1 ring-white/50' : ''}`}
-                style={{ height: `${h}%` }}
-              />
+              <div className={`w-full rounded-sm ${n > 0 ? color : 'bg-offwhite-dim/5'} ${isToday && n > 0 ? 'ring-1 ring-white/50' : ''}`} style={{ height: `${h}%` }} />
             </div>
           );
         })}
@@ -632,15 +829,6 @@ function DailyBarChart({
         <p className="text-[10px] text-offwhite-dim/60">{total}</p>
         {hasData && <p className="text-[10px] text-offwhite-dim/40">最大 {formatValue(max)}</p>}
       </div>
-    </div>
-  );
-}
-
-function KPI({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
-      <p className="text-[10px] text-offwhite-dim/70 uppercase tracking-wider">{label}</p>
-      <p className="text-lg sm:text-xl font-bold text-gold mt-1">{value}</p>
     </div>
   );
 }
