@@ -115,16 +115,24 @@ export function InputBirthPlace() {
   };
 
   const handleUnknown = () => {
-    dispatch({
-      type: 'SET_USER_INFO',
-      patch: {
-        birthPlaceLabel: undefined,
-        birthPlaceLatitude: undefined,
-        birthPlaceLongitude: undefined,
-        birthPlaceUnknown: true,
-      },
-    });
-    setGeocodeStatus('idle');
+    if (birthPlaceUnknown) {
+      // トグルOFF: 「不明」を解除して選択可能に戻す
+      dispatch({
+        type: 'SET_USER_INFO',
+        patch: { birthPlaceUnknown: false },
+      });
+    } else {
+      dispatch({
+        type: 'SET_USER_INFO',
+        patch: {
+          birthPlaceLabel: undefined,
+          birthPlaceLatitude: undefined,
+          birthPlaceLongitude: undefined,
+          birthPlaceUnknown: true,
+        },
+      });
+      setGeocodeStatus('idle');
+    }
   };
 
   const canProceed = !!birthPlaceLabel || birthPlaceUnknown;

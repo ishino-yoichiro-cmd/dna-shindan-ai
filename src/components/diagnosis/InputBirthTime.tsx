@@ -19,10 +19,18 @@ export function InputBirthTime() {
   };
 
   const handleUnknown = () => {
-    dispatch({
-      type: 'SET_USER_INFO',
-      patch: { birthTime: undefined, birthTimeUnknown: true },
-    });
+    if (birthTimeUnknown) {
+      // トグルOFF: 「不明」を解除して入力可能に戻す
+      dispatch({
+        type: 'SET_USER_INFO',
+        patch: { birthTimeUnknown: false },
+      });
+    } else {
+      dispatch({
+        type: 'SET_USER_INFO',
+        patch: { birthTime: undefined, birthTimeUnknown: true },
+      });
+    }
   };
 
   const canProceed = !!birthTime || birthTimeUnknown;
