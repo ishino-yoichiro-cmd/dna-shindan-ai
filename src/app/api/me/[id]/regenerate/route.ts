@@ -39,7 +39,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       status: 'received',
       report_text: null,
       pdf_storage_path: null,
-      email_report_sent_at: null,
+      // email_report_sent_at は絶対にクリアしない（再生成時の再送防止・物理ゲート）
       completed_at: null,
       error_log: null,
     } as any)

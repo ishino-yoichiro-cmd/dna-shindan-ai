@@ -341,9 +341,12 @@ export async function POST(req: Request) {
     .eq('id', id);
 
   // マイページURL案内メール送信
+  // 【物理ゲート】email_report_sent_at が既にセットされている場合は絶対に再送しない
+  // 既存フローの初回完了時のみ送信可。再生成・管理操作による再送は構造的に不可能にする
   let mailOk = false;
   let mailError: string | undefined;
-  if (row.email && row.access_token) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (row.email && row.access_token && !(row as any).email_report_sent_at) {
     const myPageUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/me/${id}?token=${row.access_token}`;
     const r = await sendReportMail({
       to: row.email,
