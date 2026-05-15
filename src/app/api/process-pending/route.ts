@@ -225,14 +225,41 @@ export async function POST(req: Request) {
     }
   }
 
-  // 3) 全章完了 → PDF生成 → Storage → メール送信 → status=completed
-  const chapters = updatedChapters;
+  // 3) 全章完了 → Markdownサニタイズ → PDF生成 → Storage → メール送信 → status=completed
+
+  let pdfDebugLog = '';
+
+  // ── Markdown記号残存サニタイズ ──
+  // LLM出力に ## や ** 等のMarkdown記号が残ることがある。
+  // PDFに変換する前に除去し、残存していた場合はログに記録する。
+  let markdownFound = false;
+  const sanitizedChapters: Record<string, string> = {};
+  for (const [key, text] of Object.entries(updatedChapters)) {
+    let cleaned = text;
+    // 見出し記号（行頭の # ）を除去
+    if (/^#{1,4}\s/m.test(cleaned)) { markdownFound = true; }
+    cleaned = cleaned.replace(/^#{1,4}\s+/gm, '');
+    // 太字記号（**text**）を除去
+    if (/\*\*[^*]+\*\*/m.test(cleaned)) { markdownFound = true; }
+    cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');
+    // 斜体記号（*text* — 太字除去後に処理）
+    cleaned = cleaned.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '$1');
+    // リストの - や * を除去（行頭のみ）
+    cleaned = cleaned.replace(/^[\-\*]\s+/gm, '');
+    // バッククォート（`code`）を除去
+    cleaned = cleaned.replace(/`([^`]+)`/g, '$1');
+    sanitizedChapters[key] = cleaned;
+  }
+  if (markdownFound) {
+    pdfDebugLog += 'markdown_sanitized;';
+  }
+
+  const chapters = sanitizedChapters;
   const cloneUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/clone/${id}`;
   const cloneSystemPrompt = buildCloneSystemPrompt(ctx, chapters);
 
   // PDF生成（タイムアウト保護120秒）
   let pdfBuffer: Buffer | undefined;
-  let pdfDebugLog = '';
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const scoreSrc = (ctx.scores ?? null) as any;
@@ -301,6 +328,8 @@ export async function POST(req: Request) {
 
       // ── PDF品質サニティチェック（物理ゲート）──
       // Vercel Node.js環境でPythonが使えないため、バイナリ解析で最低限の品質を保証する
+      // 注意: react-pdf は BT/ET テキストオペレータを使わずフォントグリフで描画するため
+      //       BT カウントではなくテキスト断片 (...) パターンで判定する
       const pdfQualityIssues: string[] = [];
       try {
         const buf = Buffer.from(result);
@@ -317,17 +346,17 @@ export async function POST(req: Request) {
         // (3) ファイルサイズチェック（小さすぎ=コンテンツ欠落、大きすぎ=異常）
         if (result.byteLength < 150_000) pdfQualityIssues.push(`size_too_small:${result.byteLength}B`);
         if (result.byteLength > 10_000_000) pdfQualityIssues.push(`size_too_large:${result.byteLength}B`);
-        // (4) テキスト存在確認（BT...ET ブロックが最低50個あること）
-        const textBlockCount = (pdfStr.match(/BT\s/g) ?? []).length;
-        if (textBlockCount < 50) pdfQualityIssues.push(`text_blocks_too_few:${textBlockCount}`);
+        // (4) テキスト断片確認（react-pdf はフォントグリフで描画するため (...) パターンで判定）
+        const textFragments = (pdfStr.match(/\([^\)]{3,}\)/g) ?? []).length;
+        if (textFragments < 100) pdfQualityIssues.push(`text_fragments_too_few:${textFragments}`);
 
         if (pdfQualityIssues.length > 0) {
           pdfDebugLog += `quality_issues:${pdfQualityIssues.join(',')};`;
           await alertYo(
-            `[PDF品質警告] ${fullName}（${id}）\n問題: ${pdfQualityIssues.join(', ')}\nページ数: ${pageCount} / サイズ: ${result.byteLength}B`
+            `[PDF品質警告] ${fullName}（${id}）\n問題: ${pdfQualityIssues.join(', ')}\nページ数: ${pageCount} / サイズ: ${result.byteLength}B / テキスト断片: ${textFragments}`
           ).catch(() => {});
         } else {
-          pdfDebugLog += `quality_ok:pages=${pageCount};`;
+          pdfDebugLog += `quality_ok:pages=${pageCount},fragments=${textFragments};`;
         }
       } catch (qe) {
         pdfDebugLog += `quality_check_err:${qe instanceof Error ? qe.message : String(qe)};`;
