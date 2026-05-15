@@ -380,8 +380,17 @@ export async function POST(req: Request) {
   // 既存フローの初回完了時のみ送信可。再生成・管理操作による再送は構造的に不可能にする
   let mailOk = false;
   let mailError: string | undefined;
+
+  // 【一時停止ガード】Gmail障害時に環境変数で完了メール送信を止める
+  if (process.env.DISABLE_COMPLETION_MAIL === 'true') {
+    mailError = 'mail_suspended:DISABLE_COMPLETION_MAIL';
+    await supa
+      .from('dna_diagnoses')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ error_log: `${pdfDebugLog}mail_suspended;` } as any)
+      .eq('id', id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (row.email && row.access_token && !(row as any).email_report_sent_at) {
+  } else if (row.email && row.access_token && !(row as any).email_report_sent_at) {
     const myPageUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/me/${id}?token=${row.access_token}`;
     const r = await sendReportMail({
       to: row.email,

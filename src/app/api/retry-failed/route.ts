@@ -134,7 +134,12 @@ export async function POST(req: Request) {
     .order('completed_at', { ascending: true })
     .limit(5);
 
+  // 【一時停止ガード】Gmail障害時に環境変数で完了メール再送を止める
   let emailResent = 0;
+  const mailSuspended = process.env.DISABLE_COMPLETION_MAIL === 'true';
+  if (mailSuspended) {
+    return Response.json({ ok: true, retried, skipped, stuckReset, emailResent: 0, mailSuspended: true, details });
+  }
   for (const row of unsentRows ?? []) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = row as any;
