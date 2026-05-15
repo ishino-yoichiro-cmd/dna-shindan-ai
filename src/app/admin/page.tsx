@@ -50,6 +50,19 @@ interface SubmissionRow {
   access_token?: string | null;
   hidden_at?: string | null;
   feedback_count?: number;
+  email_report_sent_at?: string | null;
+  duplicate_count?: number;
+}
+
+interface ResendPreview {
+  id: string;
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+  myPageUrl: string;
+  wasAlreadySent: boolean;
+  lastSentAt: string | null;
 }
 
 interface FeedbackRow {
@@ -133,6 +146,12 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [hidingId, setHidingId] = useState<string | null>(null);
+  const [resendPreview, setResendPreview] = useState<ResendPreview | null>(null);
+  const [resendPreviewLoading, setResendPreviewLoading] = useState<string | null>(null);
+  const [resendPreviewError, setResendPreviewError] = useState<string>('');
+  const [resendSending, setResendSending] = useState(false);
+  const [resendResultMsg, setResendResultMsg] = useState<string>('');
+  const [previewMode, setPreviewMode] = useState<'html' | 'text'>('html');
   const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>('data');
   const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
@@ -219,6 +238,68 @@ export default function AdminPage() {
         if (Array.isArray(d.logs)) setSendLogs(d.logs);
       }
     } catch {}
+  };
+
+  // レポート再送：プレビュー取得（送信はしない）
+  const openResendPreview = async (id: string) => {
+    setResendPreviewLoading(id);
+    setResendPreviewError('');
+    setResendResultMsg('');
+    try {
+      const r = await fetch('/api/admin/resend-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${pass}` },
+        body: JSON.stringify({ id, previewOnly: true }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setResendPreview({
+          id,
+          to: j.to,
+          subject: j.subject,
+          text: j.text,
+          html: j.html,
+          myPageUrl: j.myPageUrl,
+          wasAlreadySent: j.wasAlreadySent,
+          lastSentAt: j.lastSentAt,
+        });
+        setPreviewMode('html');
+      } else {
+        setResendPreviewError(`プレビュー取得失敗: ${j.error ?? 'unknown'}`);
+      }
+    } catch (e) {
+      setResendPreviewError(`通信エラー: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setResendPreviewLoading(null);
+    }
+  };
+
+  // レポート再送：実際に送信（プレビューモーダルから呼ぶ）
+  const handleResendConfirm = async () => {
+    if (!resendPreview) return;
+    setResendSending(true);
+    setResendResultMsg('');
+    try {
+      const r = await fetch('/api/admin/resend-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${pass}` },
+        body: JSON.stringify({ id: resendPreview.id }),
+      });
+      const j: { ok: boolean; error?: string; sentAt?: string; cooldownRemainingSec?: number } = await r.json();
+      if (j.ok) {
+        setResendResultMsg(`✓ ${resendPreview.to} に送信完了（${j.sentAt?.slice(0,16).replace('T',' ')}）`);
+        setResendPreview(null);
+        await loadStats();
+      } else if (j.cooldownRemainingSec !== undefined) {
+        setResendResultMsg(`✗ クールダウン中（あと${j.cooldownRemainingSec}秒。同一IDへの連続送信防止）`);
+      } else {
+        setResendResultMsg(`✗ 送信失敗: ${j.error ?? 'unknown'}`);
+      }
+    } catch (e) {
+      setResendResultMsg(`✗ 通信エラー: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setResendSending(false);
+    }
   };
 
   const handleHide = async (id: string, unhide: boolean) => {
@@ -447,6 +528,99 @@ export default function AdminPage() {
     <main className="min-h-screen bg-navy-deep text-offwhite px-4 py-6">
       <div className="max-w-7xl mx-auto space-y-5">
 
+        {/* レポート再送プレビューモーダル */}
+        {resendPreview && (
+          <div
+            className="fixed inset-0 z-50 bg-black/70 flex items-start sm:items-center justify-center p-4 overflow-y-auto"
+            onClick={() => !resendSending && setResendPreview(null)}
+          >
+            <div
+              className="bg-navy-deep border border-gold/40 rounded-xl max-w-2xl w-full my-8 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* ヘッダー */}
+              <div className="p-5 border-b border-gold/20">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h2 className="text-lg font-bold text-gold">レポート完了メール プレビュー</h2>
+                  <button
+                    onClick={() => !resendSending && setResendPreview(null)}
+                    className="text-offwhite-dim hover:text-offwhite text-xl leading-none px-2"
+                    aria-label="閉じる"
+                  >×</button>
+                </div>
+                <div className="text-xs text-offwhite-dim space-y-1">
+                  <div><span className="text-offwhite-dim/60">宛先：</span><span className="text-offwhite font-mono">{resendPreview.to}</span></div>
+                  <div><span className="text-offwhite-dim/60">件名：</span>{resendPreview.subject}</div>
+                  <div>
+                    <span className="text-offwhite-dim/60">過去送信：</span>
+                    {resendPreview.wasAlreadySent ? (
+                      <span className="text-emerald-300">{resendPreview.lastSentAt?.slice(0,16).replace('T',' ')}（再送になります）</span>
+                    ) : (
+                      <span className="text-red-300">未送信（新規送信）</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* プレビュー切替 */}
+              <div className="flex border-b border-gold/20 text-xs">
+                <button
+                  onClick={() => setPreviewMode('html')}
+                  className={`flex-1 px-4 py-2 ${previewMode === 'html' ? 'bg-gold/10 text-gold border-b-2 border-gold' : 'text-offwhite-dim hover:bg-offwhite-dim/5'}`}
+                >HTML プレビュー</button>
+                <button
+                  onClick={() => setPreviewMode('text')}
+                  className={`flex-1 px-4 py-2 ${previewMode === 'text' ? 'bg-gold/10 text-gold border-b-2 border-gold' : 'text-offwhite-dim hover:bg-offwhite-dim/5'}`}
+                >テキスト版</button>
+              </div>
+
+              {/* プレビュー本体 */}
+              <div className="p-5 max-h-[55vh] overflow-y-auto bg-offwhite/5">
+                {previewMode === 'html' ? (
+                  <iframe
+                    srcDoc={resendPreview.html}
+                    title="メールHTMLプレビュー"
+                    sandbox=""
+                    className="w-full bg-white rounded border border-offwhite-dim/20"
+                    style={{ minHeight: '420px' }}
+                  />
+                ) : (
+                  <pre className="text-xs text-offwhite whitespace-pre-wrap font-mono leading-relaxed">{resendPreview.text}</pre>
+                )}
+              </div>
+
+              {/* マイページURL */}
+              <div className="px-5 py-3 border-t border-gold/20 text-[11px] text-offwhite-dim/80 break-all">
+                <span className="text-offwhite-dim/60">マイページURL：</span>
+                <a href={resendPreview.myPageUrl} target="_blank" rel="noopener noreferrer" className="text-gold hover:underline">
+                  {resendPreview.myPageUrl}
+                </a>
+              </div>
+
+              {/* アクションフッタ */}
+              <div className="p-5 border-t border-gold/20 flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-[11px] text-offwhite-dim/60">
+                  ※ この内容で <strong className="text-offwhite-dim">{resendPreview.to}</strong> 宛に送信します
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => !resendSending && setResendPreview(null)}
+                    disabled={resendSending}
+                    className="text-xs border border-offwhite-dim/30 text-offwhite-dim px-4 py-2 rounded-lg hover:bg-offwhite-dim/10 disabled:opacity-50"
+                  >キャンセル</button>
+                  <button
+                    onClick={() => void handleResendConfirm()}
+                    disabled={resendSending}
+                    className="text-xs border border-emerald-400/60 bg-emerald-500/20 text-emerald-200 font-bold px-5 py-2 rounded-lg hover:bg-emerald-500/30 disabled:opacity-50"
+                  >
+                    {resendSending ? '送信中…' : 'この内容で送信する'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ヘッダー */}
         <header className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-gold/20">
           <h1 className="text-2xl font-bold text-gold">DNA SHINDAN AI 管理</h1>
@@ -532,11 +706,27 @@ export default function AdminPage() {
                 {stats.rows.map((r, i) => (
                   <div key={r.id} className={`relative rounded-lg border ${r.hidden_at ? 'border-offwhite-dim/20 opacity-50' : selected === i ? 'border-gold bg-gold/10' : 'border-gold/20 bg-navy-soft/40'}`}>
                     <button onClick={() => setSelected(i)} className="w-full text-left p-3">
-                      <p className="text-sm text-offwhite font-bold pr-8 flex items-center gap-2">
+                      <p className="text-sm text-offwhite font-bold pr-8 flex items-center gap-2 flex-wrap">
                         <span>{[r.last_name, r.first_name].filter(Boolean).join(' ') || r.clone_display_name || '(no-name)'}</span>
                         {r.hidden_at && <span className="text-[10px] text-offwhite-dim/50 font-normal">非表示</span>}
                         {(r.feedback_count ?? 0) > 0 && (
                           <span className="text-[10px] bg-gold/20 text-gold border border-gold/40 rounded px-1 font-bold">感想{r.feedback_count}</span>
+                        )}
+                        {(r.duplicate_count ?? 1) > 1 && (
+                          <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-400/40 rounded px-1 font-bold" title="同じメールアドレスで複数の診断申込あり">
+                            重複{r.duplicate_count}
+                          </span>
+                        )}
+                        {r.status === 'completed' && (
+                          r.email_report_sent_at ? (
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 rounded px-1 font-bold" title={`完了報告メール送信済: ${r.email_report_sent_at.slice(0,16).replace('T',' ')}`}>
+                              ✉ 送信済
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-400/40 rounded px-1 font-bold" title="完了報告メール未送信">
+                              ✉ 未送信
+                            </span>
+                          )
                         )}
                       </p>
                       <p className="text-xs text-offwhite-dim">{r.email}</p>
@@ -584,13 +774,32 @@ export default function AdminPage() {
                         <a href={`/me/${sel.id}`} target="_blank" rel="noopener noreferrer" className="text-xs border border-offwhite-dim/30 text-offwhite-dim px-3 py-1 rounded-lg hover:bg-offwhite-dim/10">
                           マイページ
                         </a>
-                        {/* 個別メール送信 */}
+                        {/* 個別メール送信（自由文） */}
                         {sel.email && (
                           <button
                             onClick={() => openMailForUser(sel.id)}
                             className="text-xs border border-blue-400/40 text-blue-300 px-3 py-1 rounded-lg hover:bg-blue-400/10"
                           >
                             メール送信
+                          </button>
+                        )}
+                        {/* レポート完了メール プレビュー → 確認後に送信 */}
+                        {sel.email && sel.status === 'completed' && sel.access_token && (
+                          <button
+                            onClick={() => void openResendPreview(sel.id)}
+                            disabled={resendPreviewLoading === sel.id}
+                            className={`text-xs border px-3 py-1 rounded-lg ${
+                              sel.email_report_sent_at
+                                ? 'border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10'
+                                : 'border-red-400/60 text-red-300 hover:bg-red-400/10'
+                            }`}
+                            title={sel.email_report_sent_at
+                              ? `送信済（${sel.email_report_sent_at.slice(0,16).replace('T',' ')}）。クリックでプレビュー→再送`
+                              : '未送信。クリックでプレビュー→送信'}
+                          >
+                            {resendPreviewLoading === sel.id
+                              ? 'プレビュー取得中…'
+                              : sel.email_report_sent_at ? '✉ レポート再送（プレビュー）' : '✉ レポート送信（プレビュー）'}
                           </button>
                         )}
                         <button
@@ -601,6 +810,14 @@ export default function AdminPage() {
                           {hidingId === sel.id ? '処理中…' : sel.hidden_at ? '再表示する' : '非表示にする'}
                         </button>
                       </div>
+                      {resendPreviewError && (
+                        <p className="text-xs mt-2 text-red-300">{resendPreviewError}</p>
+                      )}
+                      {resendResultMsg && (
+                        <p className={`text-xs mt-2 ${resendResultMsg.startsWith('✓') ? 'text-emerald-300' : 'text-red-300'}`}>
+                          {resendResultMsg}
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
@@ -611,6 +828,7 @@ export default function AdminPage() {
                       <KV label="APIコスト" value={`$${(sel.api_cost_usd ?? 0).toFixed(3)}`} />
                       <KV label="登録" value={sel.created_at?.slice(0,16).replace('T',' ') ?? '—'} />
                       <KV label="完了" value={sel.completed_at?.slice(0,16).replace('T',' ') ?? '—'} />
+                      <KV label="メール送信" value={sel.email_report_sent_at?.slice(0,16).replace('T',' ') ?? (sel.status === 'completed' ? '未送信' : '—')} />
                       <KV label="最終DL" value={sel.last_downloaded_at?.slice(0,16).replace('T',' ') ?? '—'} />
                     </div>
 

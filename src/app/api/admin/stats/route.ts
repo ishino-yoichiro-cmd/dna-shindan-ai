@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   // 詳細表示時は /api/admin/detail?id=xxx で個別取得。
   const { data, error } = await supa
     .from('dna_diagnoses')
-    .select('id, first_name, last_name, email, status, relationship_tag, download_count, chat_count, api_cost_usd, created_at, last_downloaded_at, last_chat_at, completed_at, select_answers, narrative_answers, style_sample, clone_display_name, access_token, hidden_at, pdf_storage_path, error_log')
+    .select('id, first_name, last_name, email, status, relationship_tag, download_count, chat_count, api_cost_usd, created_at, last_downloaded_at, last_chat_at, completed_at, select_answers, narrative_answers, style_sample, clone_display_name, access_token, hidden_at, pdf_storage_path, error_log, email_report_sent_at')
     .order('created_at', { ascending: false });
 
   // 感想数を一括取得（N+1回避）
@@ -65,6 +65,15 @@ export async function GET(req: NextRequest) {
     feedbackCountMap[f.diagnosis_id] = (feedbackCountMap[f.diagnosis_id] ?? 0) + 1;
   }
 
+  // 同一email の重複申込カウント（hidden_at IS NULL の中で email 正規化＋カウント）
+  const emailCountMap: Record<string, number> = {};
+  for (const r of (data ?? []) as Array<{ email?: string | null; hidden_at?: string | null }>) {
+    if (r.hidden_at) continue;
+    const key = (r.email ?? '').trim().toLowerCase();
+    if (!key) continue;
+    emailCountMap[key] = (emailCountMap[key] ?? 0) + 1;
+  }
+
   // テスト名パターン判定（hidden_at 未設定でも常にデフォルト非表示）
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isTestRecord = (r: any): boolean => {
@@ -74,10 +83,14 @@ export async function GET(req: NextRequest) {
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const allRows = ((data ?? []) as any[]).map((r) => ({
-    ...(shouldSanitize ? sanitizeRow(r) : r),
-    feedback_count: feedbackCountMap[r.id] ?? 0,
-  }));
+  const allRows = ((data ?? []) as any[]).map((r) => {
+    const emailKey = (r.email ?? '').trim().toLowerCase();
+    return {
+      ...(shouldSanitize ? sanitizeRow(r) : r),
+      feedback_count: feedbackCountMap[r.id] ?? 0,
+      duplicate_count: emailKey ? (emailCountMap[emailKey] ?? 1) : 1,
+    };
+  });
   const rows = showHidden
     ? allRows
     : allRows.filter((r) => !r.hidden_at && !isTestRecord(r));

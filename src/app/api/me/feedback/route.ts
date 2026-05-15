@@ -9,6 +9,7 @@
 export const runtime = 'nodejs';
 
 import { sendMail } from '@/lib/email/gmail';
+import { autoAlertsDisabled } from '@/lib/email/auto-alert-killswitch';
 import { getSupabaseServiceRoleClient } from '@/lib/supabase/server';
 
 export async function POST(req: Request) {
@@ -52,8 +53,10 @@ export async function POST(req: Request) {
     const safeDisplayName = displayName.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const safeMessage     = message.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    // YO への通知メール
-    const notifyResult = await sendMail({
+    // YO への通知メール（DISABLE_AUTO_ALERTS=1 でスキップ — YO 2026-05-16 指示）
+    const notifyResult = autoAlertsDisabled()
+      ? { ok: true as const }
+      : await sendMail({
       to: 'yoisno@gmail.com',
       subject: '【DNA診断AI】分身AI 利用者からの感想',
       text: `送信者: ${displayName}\n診断ID: ${diagnosisId}\n\n${message}`,
@@ -70,8 +73,9 @@ export async function POST(req: Request) {
     });
 
     // 感想送信者へのお礼メール（メールアドレスがある場合のみ）
+    // DISABLE_AUTO_ALERTS=1 のときは送信スキップ（YO 2026-05-16 指示「自動の完了報告以外は送らない」）
     const userEmail = (diagnosisRow as { email?: string | null }).email ?? null;
-    if (userEmail) {
+    if (userEmail && !autoAlertsDisabled()) {
       await sendMail({
         to: userEmail,
         subject: '【DNA診断AI】感想をありがとうございます＋プレゼントのご案内',
