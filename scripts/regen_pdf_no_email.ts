@@ -22,8 +22,7 @@ const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 // 再生成対象ID
 const TARGET_IDS = [
-  // 再生成対象IDをここに記入（実行前に必ず変更すること）
-  // 例: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', // 名前 email (エラー内容)
+  '968cf052-88f9-4b04-9919-a226b532fa21', // 杉本 真由美 — テスト再生成
 ];
 
 function applyCloneUrl(md: string, id: string): string {

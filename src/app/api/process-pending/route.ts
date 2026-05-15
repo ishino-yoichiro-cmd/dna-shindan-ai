@@ -225,36 +225,11 @@ export async function POST(req: Request) {
     }
   }
 
-  // 3) 全章完了 → Markdownサニタイズ → PDF生成 → Storage → メール送信 → status=completed
+  // 3) 全章完了 → PDF生成 → Storage → メール送信 → status=completed
 
   let pdfDebugLog = '';
 
-  // ── Markdown記号残存サニタイズ ──
-  // LLM出力に ## や ** 等のMarkdown記号が残ることがある。
-  // PDFに変換する前に除去し、残存していた場合はログに記録する。
-  let markdownFound = false;
-  const sanitizedChapters: Record<string, string> = {};
-  for (const [key, text] of Object.entries(updatedChapters)) {
-    let cleaned = text;
-    // 見出し記号（行頭の # ）を除去
-    if (/^#{1,4}\s/m.test(cleaned)) { markdownFound = true; }
-    cleaned = cleaned.replace(/^#{1,4}\s+/gm, '');
-    // 太字記号（**text**）を除去
-    if (/\*\*[^*]+\*\*/m.test(cleaned)) { markdownFound = true; }
-    cleaned = cleaned.replace(/\*\*([^*]+)\*\*/g, '$1');
-    // 斜体記号（*text* — 太字除去後に処理）
-    cleaned = cleaned.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '$1');
-    // リストの - や * を除去（行頭のみ）
-    cleaned = cleaned.replace(/^[\-\*]\s+/gm, '');
-    // バッククォート（`code`）を除去
-    cleaned = cleaned.replace(/`([^`]+)`/g, '$1');
-    sanitizedChapters[key] = cleaned;
-  }
-  if (markdownFound) {
-    pdfDebugLog += 'markdown_sanitized;';
-  }
-
-  const chapters = sanitizedChapters;
+  const chapters = updatedChapters;
   const cloneUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/clone/${id}`;
   const cloneSystemPrompt = buildCloneSystemPrompt(ctx, chapters);
 
