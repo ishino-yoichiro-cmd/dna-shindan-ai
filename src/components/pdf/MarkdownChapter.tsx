@@ -117,23 +117,19 @@ function preprocessMarkdown(md: string): string {
   md2 = md2.replace(/^(#{2,4} )(\S{4,})([ 　])(.{15,})$/gm, (_, marker, heading, _sp, body) => {
     return `${marker}${heading.trim()}\n\n${body.trim()}`;
   });
-  // 日本語見出し＋本文が空白なしで連続している場合を強制分割（上の regex が取りこぼすケース）
-  // 例: "## あなたの強み生まれながらにして..." → "## あなたの強み\n\n生まれながらにして..."
+  // 日本語見出し＋本文が空白なしで連続している場合を分割（上の regex が取りこぼすケース）
+  // 例: "## あなたの強み。生まれながらにして..." → "## あなたの強み。\n\n生まれながらにして..."
+  // 注意: 句読点がなければ分割しない（14文字強制分割は見出し切断の原因となるため廃止）
   md2 = md2.replace(/^(#{2,4} )(.{20,})$/gm, (whole, marker, content) => {
-    // 句読点（。！？）での分割を優先（見出し内の自然な区切り位置）
-    for (let i = 5; i <= Math.min(18, content.length - 1); i++) {
+    // 句読点（。！？）での分割を優先（探索範囲を5〜40文字に拡大）
+    for (let i = 5; i <= Math.min(40, content.length - 1); i++) {
       if ('。！？'.includes(content[i])) {
         const headingPart = content.slice(0, i + 1).trim();
         const bodyPart = content.slice(i + 1).trim();
         if (bodyPart.length >= 10) return `${marker}${headingPart}\n\n${bodyPart}`;
       }
     }
-    // 句読点がなければ14文字目で強制分割（見出しタイトルと本文の境界として）
-    if (content.length > 24) {
-      const headingPart = content.slice(0, 14).trim();
-      const bodyPart = content.slice(14).trim();
-      if (bodyPart.length >= 10) return `${marker}${headingPart}\n\n${bodyPart}`;
-    }
+    // 句読点が見つからなければ分割しない（見出しテキスト全体を見出しとする）
     return whole;
   });
   // 行中の ・ → 直前に改行を挿入（行頭の ・ はそのまま）
@@ -476,6 +472,10 @@ function parseMarkdown(md: string): ParseNode[] {
       flushPara();
       flushNumbered();
       listItems.push(line.slice(2).trim());
+      continue;
+    }
+    // 空の引用行（> のみ）— 引用ブロック内の段落区切りとして無視
+    if (line.trim() === '>') {
       continue;
     }
     if (line.startsWith('> ')) {
