@@ -57,6 +57,11 @@ function preprocessMarkdown(md: string): string {
   // 行中に埋め込まれた ##heading も対処（文字の後に ## が続くケース）
   md2 = md2.replace(/([^\n#])(#{1,4})([^\s#\n ])/g, '$1\n\n$2 $3');
 
+  // === 前処理 -0.8: ###\n見出しテキスト → ### 見出しテキスト に結合 ===
+  // LLMが見出し記号と本文を改行で分離するケースへの対処
+  // 例: "###\nこうした夢中体験の〜" → "### こうした夢中体験の〜"
+  md2 = md2.replace(/^(#{2,4})\s*\n+([^\n#>|\-*・\d])/gm, '$1 $2');
+
   // === 前処理 -0.5: 禁止セクションを除去（初回プロンプト例・コピペ定型文）===
   // LLMが出力した既存DBデータにも含まれる可能性があるため、レンダリング時に除去
   const BANNED_SECTION_PATTERNS = [
@@ -531,7 +536,7 @@ function H2({ text }: { text: string }) {
             lineHeight: 1.4,
           }}
         >
-          {text}
+          {text.replace(/\*\*/g, '')}
         </Text>
       </View>
     </View>
@@ -572,7 +577,7 @@ function H3({ text }: { text: string }) {
           flex: 1,
         }}
       >
-        {text}
+        {text.replace(/\*\*/g, '')}
       </Text>
     </View>
   );
@@ -601,7 +606,7 @@ function H4({ text }: { text: string }) {
           letterSpacing: 0.2,
         }}
       >
-        {text}
+        {text.replace(/\*\*/g, '')}
       </Text>
     </View>
   );
