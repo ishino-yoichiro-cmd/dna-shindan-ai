@@ -20,10 +20,20 @@ import { runAllCelestial } from '../src/lib/celestial';
 const SUPABASE_URL = 'https://utcsldezxxjeednyxovs.supabase.co';
 const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV0Y3NsZGV6eHhqZWVkbnl4b3ZzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTc1OTk4MSwiZXhwIjoyMDkxMzM1OTgxfQ.LWTdcbA5QnXf-ig0fX7WPEw6HjBGPt_Jy6AX21Oe3lU';
 
-// 再生成対象ID
+// 再生成対象ID（13名・メール未送達+report_textあり）
 const TARGET_IDS = [
-  'd278f22f-cdeb-4c23-9406-59dfa770af0f', // mail@yoz.jp
-  'ea590d25-465d-483d-857f-47fb341557d1', // waku.0221@gmail.com
+  'ef1ac321-3932-4e44-af03-9681e53d7e4a', // MITSUHIRO 中山
+  'eeccd806-ce4f-480a-8749-638616bb3373', // 大輔 長谷川
+  'caf431e2-7d5e-4bcd-b2ac-b9bd8a74366a', // ゆうか 山田夕佳
+  '8977f3f2-cdcf-4d74-a17d-e8377918d944', // 裕子 紺野
+  '02351b78-3fce-4763-9a7a-d18135381f5a', // Yilyil
+  '9fb02f60-5964-49fc-9b60-71ed16767b62', // 純美 藤澤
+  'f4bf49be-8435-4a71-b7e3-5fbc9caabb36', // 佐奈重 坂井
+  '0d7fa15f-334e-47ce-b4cc-ea4e5c3ab1be', // 賢哉 矢冨
+  '73e37ad5-e1e5-48d1-97cb-83902004039a', // KOKO
+  '9975e165-a093-4756-8ad2-d38e3afa3f9f', // ゆかちん
+  '98511137-0beb-43a7-9e4b-a83a617a2ad8', // hide
+  '1601db75-e9da-4107-b7fb-dd6676ec3381', // 容子 石川
 ];
 
 function applyCloneUrl(md: string, id: string): string {
