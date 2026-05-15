@@ -226,15 +226,13 @@ export async function POST(req: Request) {
   }
 
   // 3) 全章完了 → PDF生成 → Storage → メール送信 → status=completed
-
-  let pdfDebugLog = '';
-
   const chapters = updatedChapters;
   const cloneUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/clone/${id}`;
   const cloneSystemPrompt = buildCloneSystemPrompt(ctx, chapters);
 
   // PDF生成（タイムアウト保護120秒）
   let pdfBuffer: Buffer | undefined;
+  let pdfDebugLog = '';
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const scoreSrc = (ctx.scores ?? null) as any;
@@ -300,43 +298,6 @@ export async function POST(req: Request) {
     if (result) {
       pdfBuffer = result;
       pdfDebugLog += `pdf:${result.byteLength}B;`;
-
-      // ── PDF品質サニティチェック（物理ゲート）──
-      // Vercel Node.js環境でPythonが使えないため、バイナリ解析で最低限の品質を保証する
-      // 注意: react-pdf は BT/ET テキストオペレータを使わずフォントグリフで描画するため
-      //       BT カウントではなくテキスト断片 (...) パターンで判定する
-      const pdfQualityIssues: string[] = [];
-      try {
-        const buf = Buffer.from(result);
-        // (1) PDFマジックバイト確認
-        if (!buf.slice(0, 5).toString('ascii').startsWith('%PDF-')) {
-          pdfQualityIssues.push('invalid_pdf_header');
-        }
-        // (2) ページ数チェック（/Type /Page を数える）
-        const pdfStr = buf.toString('binary');
-        const pageMatches = pdfStr.match(/\/Type\s*\/Page[^s]/g) ?? [];
-        const pageCount = pageMatches.length;
-        if (pageCount < 40) pdfQualityIssues.push(`pages_too_few:${pageCount}`);
-        if (pageCount > 120) pdfQualityIssues.push(`pages_too_many:${pageCount}`);
-        // (3) ファイルサイズチェック（小さすぎ=コンテンツ欠落、大きすぎ=異常）
-        if (result.byteLength < 150_000) pdfQualityIssues.push(`size_too_small:${result.byteLength}B`);
-        if (result.byteLength > 10_000_000) pdfQualityIssues.push(`size_too_large:${result.byteLength}B`);
-        // (4) テキスト断片確認（react-pdf はフォントグリフで描画するため (...) パターンで判定）
-        const textFragments = (pdfStr.match(/\([^\)]{3,}\)/g) ?? []).length;
-        if (textFragments < 100) pdfQualityIssues.push(`text_fragments_too_few:${textFragments}`);
-
-        if (pdfQualityIssues.length > 0) {
-          pdfDebugLog += `quality_issues:${pdfQualityIssues.join(',')};`;
-          await alertYo(
-            `[PDF品質警告] ${fullName}（${id}）\n問題: ${pdfQualityIssues.join(', ')}\nページ数: ${pageCount} / サイズ: ${result.byteLength}B / テキスト断片: ${textFragments}`
-          ).catch(() => {});
-        } else {
-          pdfDebugLog += `quality_ok:pages=${pageCount},fragments=${textFragments};`;
-        }
-      } catch (qe) {
-        pdfDebugLog += `quality_check_err:${qe instanceof Error ? qe.message : String(qe)};`;
-      }
-
       const path = `${id}.pdf`;
       const upload = await supa.storage.from('reports').upload(path, pdfBuffer, {
         contentType: 'application/pdf',
@@ -380,8 +341,6 @@ export async function POST(req: Request) {
     .eq('id', id);
 
   // マイページURL案内メール送信
-  // 【物理ゲート】email_report_sent_at が既にセットされている場合は絶対に再送しない
-  // 既存フローの初回完了時のみ送信可。再生成・管理操作による再送は構造的に不可能にする
   let mailOk = false;
   let mailError: string | undefined;
 
@@ -393,8 +352,7 @@ export async function POST(req: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .update({ error_log: `${pdfDebugLog}mail_suspended;` } as any)
       .eq('id', id);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } else if (row.email && row.access_token && !(row as any).email_report_sent_at) {
+  } else if (row.email && row.access_token) {
     const myPageUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/me/${id}?token=${row.access_token}`;
     const r = await sendReportMail({
       to: row.email,

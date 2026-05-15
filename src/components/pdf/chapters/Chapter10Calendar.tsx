@@ -67,32 +67,19 @@ export function Chapter10Calendar({ celestial, llmContent }: ReportProps) {
         <Paragraph>{overview}</Paragraph>
 
         <SectionTitle>12ヶ月マップ</SectionTitle>
-        {/* 12ヶ月マップ：View/Text 構造で高さ自動拡張（Text直接width指定はクリップバグの原因）*/}
         <View style={styles.table}>
-          <View style={[styles.tableRow, { backgroundColor: colors.backgroundCard }]} wrap={false}>
-            {(['月', 'テーマ', '今月の罠', '推奨行動'] as const).map((label, i) => {
-              const widths = ['14%', '32%', '28%', '26%'] as const;
-              return (
-                <View key={i} style={{ width: widths[i], paddingTop: 5, paddingBottom: 5, paddingRight: 5 }}>
-                  <Text style={[styles.tableLabel, { width: undefined, fontSize: 8.5 }]}>{label}</Text>
-                </View>
-              );
-            })}
+          <View style={[styles.tableRow, { backgroundColor: colors.backgroundCard }]}>
+            <Text style={[styles.tableLabel, { width: '14%' }]}>月</Text>
+            <Text style={[styles.tableLabel, { width: '32%' }]}>テーマ</Text>
+            <Text style={[styles.tableLabel, { width: '28%' }]}>今月の罠</Text>
+            <Text style={[styles.tableLabel, { width: '26%' }]}>推奨行動</Text>
           </View>
           {months12.map((m, i) => (
             <View key={i} style={styles.tableRow}>
-              <View style={{ width: '14%', paddingTop: 4, paddingBottom: 4, paddingRight: 4 }}>
-                <Text style={[styles.tableValue, { width: undefined, fontSize: 8.5 }]}>{m.month}</Text>
-              </View>
-              <View style={{ width: '32%', paddingTop: 4, paddingBottom: 4, paddingRight: 4 }}>
-                <Text style={[styles.tableValue, { width: undefined, fontSize: 8.5 }]}>{m.theme}</Text>
-              </View>
-              <View style={{ width: '28%', paddingTop: 4, paddingBottom: 4, paddingRight: 4 }}>
-                <Text style={[styles.tableValue, { width: undefined, fontSize: 8.5 }]}>{m.trap}</Text>
-              </View>
-              <View style={{ width: '26%', paddingTop: 4, paddingBottom: 4 }}>
-                <Text style={[styles.tableValue, { width: undefined, fontSize: 8.5 }]}>{m.action}</Text>
-              </View>
+              <Text style={[styles.tableValue, { width: '14%', fontSize: 8.5 }]}>{m.month}</Text>
+              <Text style={[styles.tableValue, { width: '32%', fontSize: 8.5 }]}>{m.theme}</Text>
+              <Text style={[styles.tableValue, { width: '28%', fontSize: 8.5 }]}>{m.trap}</Text>
+              <Text style={[styles.tableValue, { width: '26%', fontSize: 8.5 }]}>{m.action}</Text>
             </View>
           ))}
         </View>

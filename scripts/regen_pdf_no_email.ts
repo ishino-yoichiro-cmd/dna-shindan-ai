@@ -22,7 +22,8 @@ const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 // 再生成対象ID
 const TARGET_IDS = [
-  '968cf052-88f9-4b04-9919-a226b532fa21', // 杉本 真由美 — テスト再生成
+  'd278f22f-cdeb-4c23-9406-59dfa770af0f', // mail@yoz.jp
+  'ea590d25-465d-483d-857f-47fb341557d1', // waku.0221@gmail.com
 ];
 
 function applyCloneUrl(md: string, id: string): string {

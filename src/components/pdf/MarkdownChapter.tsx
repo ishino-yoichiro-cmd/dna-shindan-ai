@@ -57,11 +57,6 @@ function preprocessMarkdown(md: string): string {
   // 行中に埋め込まれた ##heading も対処（文字の後に ## が続くケース）
   md2 = md2.replace(/([^\n#])(#{1,4})([^\s#\n ])/g, '$1\n\n$2 $3');
 
-  // === 前処理 -0.8: ###\n見出しテキスト → ### 見出しテキスト に結合 ===
-  // LLMが見出し記号と本文を改行で分離するケースへの対処
-  // 例: "###\nこうした夢中体験の〜" → "### こうした夢中体験の〜"
-  md2 = md2.replace(/^(#{2,4})\s*\n+([^\n#>|\-*・\d])/gm, '$1 $2');
-
   // === 前処理 -0.5: 禁止セクションを除去（初回プロンプト例・コピペ定型文）===
   // LLMが出力した既存DBデータにも含まれる可能性があるため、レンダリング時に除去
   const BANNED_SECTION_PATTERNS = [
@@ -117,19 +112,23 @@ function preprocessMarkdown(md: string): string {
   md2 = md2.replace(/^(#{2,4} )(\S{4,})([ 　])(.{15,})$/gm, (_, marker, heading, _sp, body) => {
     return `${marker}${heading.trim()}\n\n${body.trim()}`;
   });
-  // 日本語見出し＋本文が空白なしで連続している場合を分割（上の regex が取りこぼすケース）
-  // 例: "## あなたの強み。生まれながらにして..." → "## あなたの強み。\n\n生まれながらにして..."
-  // 注意: 句読点がなければ分割しない（14文字強制分割は見出し切断の原因となるため廃止）
+  // 日本語見出し＋本文が空白なしで連続している場合を強制分割（上の regex が取りこぼすケース）
+  // 例: "## あなたの強み生まれながらにして..." → "## あなたの強み\n\n生まれながらにして..."
   md2 = md2.replace(/^(#{2,4} )(.{20,})$/gm, (whole, marker, content) => {
-    // 句読点（。！？）での分割を優先（探索範囲を5〜40文字に拡大）
-    for (let i = 5; i <= Math.min(40, content.length - 1); i++) {
+    // 句読点（。！？）での分割を優先（見出し内の自然な区切り位置）
+    for (let i = 5; i <= Math.min(18, content.length - 1); i++) {
       if ('。！？'.includes(content[i])) {
         const headingPart = content.slice(0, i + 1).trim();
         const bodyPart = content.slice(i + 1).trim();
         if (bodyPart.length >= 10) return `${marker}${headingPart}\n\n${bodyPart}`;
       }
     }
-    // 句読点が見つからなければ分割しない（見出しテキスト全体を見出しとする）
+    // 句読点がなければ14文字目で強制分割（見出しタイトルと本文の境界として）
+    if (content.length > 24) {
+      const headingPart = content.slice(0, 14).trim();
+      const bodyPart = content.slice(14).trim();
+      if (bodyPart.length >= 10) return `${marker}${headingPart}\n\n${bodyPart}`;
+    }
     return whole;
   });
   // 行中の ・ → 直前に改行を挿入（行頭の ・ はそのまま）
@@ -474,10 +473,6 @@ function parseMarkdown(md: string): ParseNode[] {
       listItems.push(line.slice(2).trim());
       continue;
     }
-    // 空の引用行（> のみ）— 引用ブロック内の段落区切りとして無視
-    if (line.trim() === '>') {
-      continue;
-    }
     if (line.startsWith('> ')) {
       flushPara();
       flushList();
@@ -505,7 +500,6 @@ function parseMarkdown(md: string): ParseNode[] {
 function H2({ text }: { text: string }) {
   return (
     <View
-      minPresenceAhead={80}
       style={{
         flexDirection: 'row',
         alignItems: 'stretch',
@@ -536,7 +530,7 @@ function H2({ text }: { text: string }) {
             lineHeight: 1.4,
           }}
         >
-          {text.replace(/\*\*/g, '')}
+          {text}
         </Text>
       </View>
     </View>
@@ -547,7 +541,6 @@ function H2({ text }: { text: string }) {
 function H3({ text }: { text: string }) {
   return (
     <View
-      minPresenceAhead={60}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -577,7 +570,7 @@ function H3({ text }: { text: string }) {
           flex: 1,
         }}
       >
-        {text.replace(/\*\*/g, '')}
+        {text}
       </Text>
     </View>
   );
@@ -606,7 +599,7 @@ function H4({ text }: { text: string }) {
           letterSpacing: 0.2,
         }}
       >
-        {text.replace(/\*\*/g, '')}
+        {text}
       </Text>
     </View>
   );
@@ -746,7 +739,7 @@ function Quote({ text }: { text: string }) {
   if (lines.length === 0) return null;
   return (
     <View
-      minPresenceAhead={50}
+      wrap={false}
       style={{
         backgroundColor: colors.quoteBg,
         borderLeftWidth: 4,
@@ -760,6 +753,7 @@ function Quote({ text }: { text: string }) {
         marginTop: 12,
         marginBottom: 14,
         borderRadius: 3,
+        flexShrink: 0,
       }}
     >
       <Text style={{ fontSize: 8, color: colors.accent, fontWeight: 700, letterSpacing: 2, marginBottom: 6 }}>
@@ -797,7 +791,6 @@ function Callout({
   }[kind];
   return (
     <View
-      minPresenceAhead={50}
       style={{
         backgroundColor: palette.bg,
         borderLeftWidth: 4,
@@ -881,43 +874,33 @@ function Table({ rows }: { rows: string[][] }) {
   const colWidth = `${100 / cols}%`;
   return (
     <View
-      minPresenceAhead={40}
       style={{
         marginTop: 10,
         marginBottom: 14,
         borderWidth: 0.5,
         borderColor: colors.divider,
         borderRadius: 4,
-        // wrap は許可：大きいテーブルはページまたぎを許容する
-        // wrap={false} はヘッダー行にのみ適用（下のView参照）
+        // overflow:'hidden' は react-pdf のページ境界で先頭・末尾行のボーダーを欠落させるため除去
       }}
+      wrap={false}
     >
-      {/* ヘッダー行: wrap={false} でヘッダーと最初のデータ行が分離しないよう保護 */}
       <View style={{ flexDirection: 'row', backgroundColor: colors.primary }} wrap={false}>
         {header.map((h, i) => (
-          // View/Text 構造: View にwidth・padding を持たせ Text は flex:1 で高さを自動拡張
-          // Text に直接 width を指定するとセル高が固定されテキストがクリップされるバグを回避
-          <View
+          <Text
             key={i}
             style={{
               width: colWidth as `${number}%`,
+              fontSize: 9.5,
+              fontWeight: 700,
+              color: colors.textInverse,
               padding: 7,
               borderRightWidth: 0.5,
               borderRightColor: colors.primaryLight,
+              letterSpacing: 0.3,
             }}
           >
-            <Text
-              style={{
-                fontSize: 9.5,
-                fontWeight: 700,
-                color: colors.textInverse,
-                letterSpacing: 0.3,
-                lineHeight: 1.4,
-              }}
-            >
-              {h.replace(/\*\*/g, '')}
-            </Text>
-          </View>
+            {h.replace(/\*\*/g, '')}
+          </Text>
         ))}
       </View>
       {body.map((row, ri) => (
@@ -931,26 +914,20 @@ function Table({ rows }: { rows: string[][] }) {
           }}
         >
           {row.map((cell, ci) => (
-            // View/Text 構造: セルが長文でも行高が自動拡張する
-            <View
+            <Text
               key={ci}
               style={{
                 width: colWidth as `${number}%`,
+                fontSize: 9.5,
+                color: colors.text,
                 padding: 7,
                 borderRightWidth: 0.5,
                 borderRightColor: colors.divider,
+                lineHeight: 1.55,
               }}
             >
-              <Text
-                style={{
-                  fontSize: 9.5,
-                  color: colors.text,
-                  lineHeight: 1.55,
-                }}
-              >
-                {cell.replace(/\*\*/g, '')}
-              </Text>
-            </View>
+              {cell.replace(/\*\*/g, '')}
+            </Text>
           ))}
         </View>
       ))}
