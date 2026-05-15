@@ -497,6 +497,11 @@ function parseMarkdown(md: string): ParseNode[] {
 }
 
 // セクションタイトル H2（目次スタイル踏襲：金縦バー＋薄い背景＋金アンダーライン）
+// 見出しテキスト内の対になった **xxx** を除去（本文の太字描画には影響しない）
+function stripPairedBold(s: string): string {
+  return s.replace(/\*\*([^*]+)\*\*/g, '$1');
+}
+
 function H2({ text }: { text: string }) {
   return (
     <View
@@ -530,7 +535,7 @@ function H2({ text }: { text: string }) {
             lineHeight: 1.4,
           }}
         >
-          {text}
+          {stripPairedBold(text)}
         </Text>
       </View>
     </View>
@@ -570,7 +575,7 @@ function H3({ text }: { text: string }) {
           flex: 1,
         }}
       >
-        {text}
+        {stripPairedBold(text)}
       </Text>
     </View>
   );
@@ -599,7 +604,7 @@ function H4({ text }: { text: string }) {
           letterSpacing: 0.2,
         }}
       >
-        {text}
+        {stripPairedBold(text)}
       </Text>
     </View>
   );
