@@ -5,6 +5,20 @@ import nodemailer, { type Transporter } from 'nodemailer';
 
 let cachedTransporter: Transporter | null = null;
 
+// E2Eテスト用ダミーアドレスを判定する（実送信せず処理を止める）
+// 対象: smoke+xxx@... または @example.com 全般
+// これらは存在しないアドレスのためGmail SMTPでバウンスし、送信元アカウントに通知が
+// 戻ってきてGmail日次上限を浪費する。実ユーザーには絶対に該当しない条件のみ使用。
+export function isTestEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const e = email.trim().toLowerCase();
+  if (e.startsWith('smoke+')) return true;
+  if (e.endsWith('@example.com')) return true;
+  if (e.endsWith('@example.org')) return true;
+  if (e.endsWith('@example.net')) return true;
+  return false;
+}
+
 export function getMailer(): Transporter {
   if (cachedTransporter) return cachedTransporter;
   const user = process.env.GMAIL_USER;
@@ -26,13 +40,18 @@ interface SendArgs {
   html?: string;
   bcc?: string;
   attachments?: { filename: string; content: Buffer | string }[];
+  inReplyTo?: string;
+  references?: string | string[];
 }
 
 export async function sendMail(args: SendArgs): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   try {
+    // E2Eテスト用ダミーアドレス（@example.com / smoke+ 等）は実送信せずスキップ。
+    // Gmail日次上限の浪費＋送信元アカウントへのバウンス通知乱発を防止。
+    if (isTestEmail(args.to)) {
+      return { ok: true, messageId: 'test_email_skipped', error: 'test_email_skipped' };
+    }
     const t = getMailer();
-    // Gmail SMTP は認証アカウント（GMAIL_USER）以外のfromアドレスを拒否する
-    // → from は GMAIL_USER 固定、reply-to に dna@kami-ai.jp を設定
     const from = `"DNA診断AI" <${process.env.GMAIL_USER}>`;
     const replyTo = process.env.EMAIL_REPLY_TO ?? 'dna@kami-ai.jp';
     const info = await t.sendMail({
@@ -44,6 +63,8 @@ export async function sendMail(args: SendArgs): Promise<{ ok: boolean; messageId
       text: args.text,
       html: args.html,
       attachments: args.attachments,
+      inReplyTo: args.inReplyTo,
+      references: args.references,
     });
     return { ok: true, messageId: info.messageId };
   } catch (e) {

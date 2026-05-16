@@ -124,6 +124,8 @@ export async function POST(req: Request) {
   // ── completed & email未送信レコードの再送 ──
   // status='completed' なのに email_report_sent_at が NULL = メール送信失敗した可能性
   // Gmail レート制限や一時障害で取りこぼしたユーザーへ自動再送する
+  // 【テスト除外】smoke+ / @example.com 等のE2Eテストレコードはretry対象から外す
+  // （実送信もsendMail内で防御されるが、ここで除外することでDB I/Oを節約）
   const { data: unsentRows } = await supa
     .from('dna_diagnoses')
     .select('id, email, first_name, access_token, error_log')
@@ -131,6 +133,10 @@ export async function POST(req: Request) {
     .is('email_report_sent_at', null)
     .not('email', 'is', null)
     .not('access_token', 'is', null)
+    .not('email', 'ilike', 'smoke+%')
+    .not('email', 'ilike', '%@example.com')
+    .not('email', 'ilike', '%@example.org')
+    .not('email', 'ilike', '%@example.net')
     .order('completed_at', { ascending: true })
     .limit(5);
 
