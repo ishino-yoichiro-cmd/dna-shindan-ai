@@ -194,8 +194,14 @@ function Hero({ onStart }: { onStart: () => void }) {
             <button
               type="button"
               onClick={onStart}
-              className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-8 py-4 text-base font-bold text-white backdrop-blur-md transition hover:bg-white/20 hover:border-white/45 cursor-pointer"
-              style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
+              className="inline-flex items-center gap-2 rounded-full border border-[#d22020] px-9 py-4 text-base font-bold text-white transition cursor-pointer hover:-translate-y-0.5 hover:scale-[1.02] active:translate-y-0 active:scale-100"
+              style={{
+                background:
+                  'linear-gradient(180deg, #d11a1a 0%, #a01010 45%, #5e0606 100%)',
+                boxShadow:
+                  '0 0 36px rgba(196, 24, 24, 0.55), 0 14px 32px rgba(0,0,0,0.6), 0 6px 12px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -3px 6px rgba(0,0,0,0.45)',
+                textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+              }}
             >
               診断をはじめる
               <span aria-hidden>→</span>
