@@ -190,7 +190,14 @@ function Hero({ onStart }: { onStart: () => void }) {
             50ページ超えの診断レポート＋あなた専用の分身AIボットを自動生成。
           </p>
 
-          <div className="mt-9">
+          <p
+            className="mt-9 text-sm sm:text-base font-bold text-[#e3c47a] tracking-wide"
+            style={{ textShadow: SUB_SHADOW }}
+          >
+            時間をかけて真剣で取り組むほど、分身は賢くなります。
+          </p>
+
+          <div className="mt-5">
             <button
               type="button"
               onClick={onStart}
@@ -207,13 +214,6 @@ function Hero({ onStart }: { onStart: () => void }) {
               <span aria-hidden>→</span>
             </button>
           </div>
-
-          <p
-            className="mt-6 text-sm sm:text-base font-bold text-[#e3c47a] tracking-wide"
-            style={{ textShadow: SUB_SHADOW }}
-          >
-            時間をかけて本気で取り組むほど、分身は賢くなります。
-          </p>
         </div>
       </div>
     </main>
