@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // E2E: /api/mypage-layout（公開GET）の最低保証
-// 使い方: BASE_URL=http://localhost:3300 node scripts/test-mypage-layout-e2e.mjs
+// 使い方: TEST_BASE_URL=https://dna-shindan-ai.vercel.app node scripts/test-mypage-layout-e2e.mjs
+// （ローカル時は BASE_URL=http://localhost:3000 でも可）
 
-const BASE = process.env.BASE_URL || 'http://localhost:3300';
+const BASE = process.env.TEST_BASE_URL || process.env.BASE_URL || 'http://localhost:3000';
 const fail = (m) => { console.error('❌', m); process.exit(1); };
 const ok = (m) => console.log('✅', m);
 
