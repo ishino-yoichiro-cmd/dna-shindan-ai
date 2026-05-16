@@ -24,6 +24,16 @@ const STATUS_LABELS: Record<string, string> = {
 };
 const toStatusLabel = (s: string) => STATUS_LABELS[s] ?? s;
 
+// 日時を JST (Asia/Tokyo) で「YYYY-MM-DD HH:MM」に整形
+// DB は timestamptz で UTC 保存 → そのまま表示すると 9時間ズレるため必ずこの関数を通す
+function toJST(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const j = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  return j.toISOString().slice(0, 16).replace('T', ' ');
+}
+
 type TabId = 'data' | 'feedbacks' | 'mail' | 'inbox' | 'pages';
 
 interface SubmissionRow {
@@ -332,7 +342,7 @@ export default function AdminPage() {
       });
       const j: { ok: boolean; error?: string; sentAt?: string; cooldownRemainingSec?: number } = await r.json();
       if (j.ok) {
-        setResendResultMsg(`✓ ${resendPreview.to} に送信完了（${j.sentAt?.slice(0,16).replace('T',' ')}）`);
+        setResendResultMsg(`✓ ${resendPreview.to} に送信完了（${toJST(j.sentAt)} JST）`);
         setResendPreview(null);
         await loadStats();
       } else if (j.cooldownRemainingSec !== undefined) {
@@ -721,7 +731,7 @@ export default function AdminPage() {
                   <div>
                     <span className="text-offwhite-dim/60">過去送信：</span>
                     {resendPreview.wasAlreadySent ? (
-                      <span className="text-emerald-300">{resendPreview.lastSentAt?.slice(0,16).replace('T',' ')}（再送になります）</span>
+                      <span className="text-emerald-300">{toJST(resendPreview.lastSentAt)} JST（再送になります）</span>
                     ) : (
                       <span className="text-red-300">未送信（新規送信）</span>
                     )}
@@ -913,7 +923,7 @@ export default function AdminPage() {
                         )}
                         {r.status === 'completed' && (
                           r.email_report_sent_at ? (
-                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 rounded px-1 font-bold" title={`完了報告メール送信済: ${r.email_report_sent_at.slice(0,16).replace('T',' ')}`}>
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 rounded px-1 font-bold" title={`完了報告メール送信済: ${toJST(r.email_report_sent_at)} JST`}>
                               ✉ 送信済
                             </span>
                           ) : (
@@ -930,7 +940,7 @@ export default function AdminPage() {
                         <span>Chat:{r.chat_count ?? 0}</span>
                         <span>${(r.api_cost_usd ?? 0).toFixed(2)}</span>
                       </div>
-                      <p className="text-xs text-gold/60 mt-1">{r.created_at?.slice(0,16).replace('T',' ')}</p>
+                      <p className="text-xs text-gold/60 mt-1">{toJST(r.created_at)} JST</p>
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); void handleHide(r.id, !!r.hidden_at); }}
@@ -988,7 +998,7 @@ export default function AdminPage() {
                                 : 'border-red-400/60 text-red-300 hover:bg-red-400/10'
                             }`}
                             title={sel.email_report_sent_at
-                              ? `送信済（${sel.email_report_sent_at.slice(0,16).replace('T',' ')}）。クリックでプレビュー→再送`
+                              ? `送信済（${toJST(sel.email_report_sent_at)} JST）。クリックでプレビュー→再送`
                               : '未送信。クリックでプレビュー→送信'}
                           >
                             {resendPreviewLoading === sel.id
@@ -1020,10 +1030,10 @@ export default function AdminPage() {
                       <KV label="DL回数" value={(sel.download_count ?? 0).toString()} />
                       <KV label="Chat回数" value={(sel.chat_count ?? 0).toString()} />
                       <KV label="APIコスト" value={`$${(sel.api_cost_usd ?? 0).toFixed(3)}`} />
-                      <KV label="登録" value={sel.created_at?.slice(0,16).replace('T',' ') ?? '—'} />
-                      <KV label="完了" value={sel.completed_at?.slice(0,16).replace('T',' ') ?? '—'} />
-                      <KV label="メール送信" value={sel.email_report_sent_at?.slice(0,16).replace('T',' ') ?? (sel.status === 'completed' ? '未送信' : '—')} />
-                      <KV label="最終DL" value={sel.last_downloaded_at?.slice(0,16).replace('T',' ') ?? '—'} />
+                      <KV label="登録 (JST)" value={toJST(sel.created_at)} />
+                      <KV label="完了 (JST)" value={toJST(sel.completed_at)} />
+                      <KV label="メール送信 (JST)" value={sel.email_report_sent_at ? toJST(sel.email_report_sent_at) : (sel.status === 'completed' ? '未送信' : '—')} />
+                      <KV label="最終DL (JST)" value={toJST(sel.last_downloaded_at)} />
                     </div>
 
                     <details open className="bg-navy-deep/40 border border-offwhite-dim/15 rounded-lg p-3">
@@ -1066,7 +1076,7 @@ export default function AdminPage() {
                           <div className="mt-3 space-y-3">
                             {selFeedbacks.map(f => (
                               <div key={f.id} className="bg-navy-deep/60 rounded p-3 border border-offwhite-dim/10">
-                                <p className="text-[10px] text-offwhite-dim/50 mb-1">{f.created_at?.slice(0,16).replace('T',' ')}</p>
+                                <p className="text-[10px] text-offwhite-dim/50 mb-1">{toJST(f.created_at)} JST</p>
                                 <p className="text-sm text-offwhite whitespace-pre-wrap leading-relaxed">{f.message}</p>
                               </div>
                             ))}
@@ -1145,7 +1155,7 @@ export default function AdminPage() {
                       <div className="flex flex-wrap items-baseline gap-3 mb-2">
                         <span className="text-sm font-bold text-offwhite">{name}</span>
                         <span className="text-[11px] text-offwhite-dim/50">{diag?.email}</span>
-                        <span className="text-[11px] text-offwhite-dim/40 ml-auto">{f.created_at?.slice(0,16).replace('T',' ')}</span>
+                        <span className="text-[11px] text-offwhite-dim/40 ml-auto">{toJST(f.created_at)} JST</span>
                       </div>
                       <p className="text-sm text-offwhite-dim leading-relaxed whitespace-pre-wrap">{f.message}</p>
                       <div className="mt-2 flex gap-2">
@@ -1564,7 +1574,7 @@ export default function AdminPage() {
                         {isHidden && (
                           <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-400/40 rounded px-1.5 font-bold">非公開</span>
                         )}
-                        <span className="text-[10px] text-offwhite-dim/40 ml-auto">{r.completed_at?.slice(0,16).replace('T',' ')}</span>
+                        <span className="text-[10px] text-offwhite-dim/40 ml-auto">{toJST(r.completed_at)} JST</span>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap">
                         <a
