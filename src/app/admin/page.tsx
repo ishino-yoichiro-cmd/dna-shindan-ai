@@ -157,28 +157,26 @@ interface ThreadEntry {
   meta?: Record<string, unknown>;
 }
 
-interface EditableUser {
-  id: string;
-  email?: string | null;
-  access_token?: string | null;
-  completed_at?: string | null;
-  created_at?: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  clone_display_name?: string | null;
-  clone_system_prompt?: string | null;
-  report_text?: string | null;
-  admin_memo?: string | null;
-  hidden_at?: string | null;
+// マイページ全員共通レイアウト編集
+interface LayoutSection {
+  key: 'report' | 'clone' | 'share' | 'referral' | 'feedback' | 'match';
+  visible: boolean;
+  title: string;
 }
-
-interface PageEditState {
+interface MypageLayout {
+  header: { label: string; subtitle: string };
+  intro: { visible: boolean; title: string; body: string };
+  announcement: { visible: boolean; title: string; body: string; linkUrl: string; linkText: string };
+  sections: LayoutSection[];
+  footer: { note: string };
+}
+interface LayoutEditState {
   loading: boolean;
   saving: boolean;
   error: string;
   savedAt: string | null;
-  draft: Partial<EditableUser> | null;
-  original: EditableUser | null;
+  draft: MypageLayout | null;
+  original: MypageLayout | null;
 }
 
 export default function AdminPage() {
@@ -210,8 +208,7 @@ export default function AdminPage() {
   const [thread, setThread] = useState<ThreadEntry[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
   const [inboxFilter, setInboxFilter] = useState<'all' | 'unread'>('all');
-  const [pageEditId, setPageEditId] = useState<string | null>(null);
-  const [pageEdit, setPageEdit] = useState<PageEditState>({
+  const [layoutEdit, setLayoutEdit] = useState<LayoutEditState>({
     loading: false, saving: false, error: '', savedAt: null, draft: null, original: null,
   });
   const [sendLogs, setSendLogs] = useState<Array<{
@@ -498,75 +495,59 @@ export default function AdminPage() {
     }
   };
 
-  // ── ページ管理：マイページ編集 ──
-  const startEditUser = async (id: string) => {
-    setPageEditId(id);
-    setPageEdit({ loading: true, saving: false, error: '', savedAt: null, draft: null, original: null });
+  // ── ページ管理：マイページ全員共通レイアウト編集 ──
+  const loadMypageLayout = async () => {
+    setLayoutEdit(s => ({ ...s, loading: true, error: '', savedAt: null }));
     try {
-      const r = await fetch(`/api/admin/user/${id}?pass=${encodeURIComponent(pass)}`);
+      const r = await fetch(`/api/admin/mypage-layout?pass=${encodeURIComponent(pass)}`);
       const d = await r.json();
       if (!d.ok) {
-        setPageEdit(s => ({ ...s, loading: false, error: d.error ?? '取得失敗' }));
+        setLayoutEdit(s => ({ ...s, loading: false, error: d.error ?? '取得失敗' }));
         return;
       }
-      const u = d.user as EditableUser;
-      setPageEdit({
-        loading: false, saving: false, error: '', savedAt: null,
-        draft: { ...u },
-        original: u,
-      });
+      const lo = d.layout as MypageLayout;
+      setLayoutEdit({ loading: false, saving: false, error: '', savedAt: null, draft: lo, original: lo });
     } catch (e) {
-      setPageEdit(s => ({ ...s, loading: false, error: String(e) }));
+      setLayoutEdit(s => ({ ...s, loading: false, error: String(e) }));
     }
   };
 
-  const cancelEditUser = () => {
-    setPageEditId(null);
-    setPageEdit({ loading: false, saving: false, error: '', savedAt: null, draft: null, original: null });
+  const updateLayout = (mutator: (l: MypageLayout) => MypageLayout) => {
+    setLayoutEdit(s => s.draft ? { ...s, draft: mutator(s.draft), savedAt: null } : s);
   };
 
-  const updateDraft = (field: keyof EditableUser, value: unknown) => {
-    setPageEdit(s => s.draft ? { ...s, draft: { ...s.draft, [field]: value }, savedAt: null } : s);
+  const moveSection = (idx: number, dir: -1 | 1) => {
+    updateLayout(l => {
+      const n = idx + dir;
+      if (n < 0 || n >= l.sections.length) return l;
+      const sections = [...l.sections];
+      [sections[idx], sections[n]] = [sections[n], sections[idx]];
+      return { ...l, sections };
+    });
   };
 
-  const saveEditUser = async () => {
-    if (!pageEditId || !pageEdit.draft || !pageEdit.original) return;
-    // 変更のあるフィールドのみ抽出
-    const fields: Record<string, unknown> = {};
-    const KEYS: (keyof EditableUser)[] = [
-      'first_name', 'last_name', 'clone_display_name',
-      'clone_system_prompt', 'report_text', 'admin_memo', 'hidden_at',
-    ];
-    for (const k of KEYS) {
-      const cur = pageEdit.draft[k] ?? null;
-      const orig = pageEdit.original[k] ?? null;
-      if (cur !== orig) fields[k] = cur;
-    }
-    if (Object.keys(fields).length === 0) {
-      setPageEdit(s => ({ ...s, error: '変更がありません' }));
-      return;
-    }
-    setPageEdit(s => ({ ...s, saving: true, error: '' }));
+  const resetLayoutDraft = () => {
+    setLayoutEdit(s => s.original ? { ...s, draft: s.original, savedAt: null, error: '' } : s);
+  };
+
+  const saveMypageLayout = async () => {
+    if (!layoutEdit.draft) return;
+    setLayoutEdit(s => ({ ...s, saving: true, error: '' }));
     try {
-      const res = await fetch(`/api/admin/user/${pageEditId}`, {
+      const res = await fetch('/api/admin/mypage-layout', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pass, fields }),
+        body: JSON.stringify({ pass, layout: layoutEdit.draft }),
       });
       const d = await res.json();
       if (!d.ok) {
-        setPageEdit(s => ({ ...s, saving: false, error: d.error ?? '保存失敗' }));
+        setLayoutEdit(s => ({ ...s, saving: false, error: d.error ?? '保存失敗' }));
         return;
       }
-      setPageEdit(s => ({
-        ...s, saving: false, savedAt: new Date().toISOString(),
-        original: { ...s.original!, ...d.user },
-        draft: { ...s.draft!, ...d.user },
-      }));
-      // 一覧側の表示名なども即時反映
-      void loadStats();
+      const lo = d.layout as MypageLayout;
+      setLayoutEdit({ loading: false, saving: false, error: '', savedAt: new Date().toISOString(), draft: lo, original: lo });
     } catch (e) {
-      setPageEdit(s => ({ ...s, saving: false, error: String(e) }));
+      setLayoutEdit(s => ({ ...s, saving: false, error: String(e) }));
     }
   };
 
@@ -575,6 +556,9 @@ export default function AdminPage() {
     setActiveTab(tab);
     if (tab === 'inbox' && !inboxLoaded) {
       void loadInbox();
+    }
+    if (tab === 'pages' && !layoutEdit.draft && !layoutEdit.loading) {
+      void loadMypageLayout();
     }
   };
 
@@ -1542,191 +1526,233 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* ── TAB: ページ管理 ── */}
+        {/* ── TAB: ページ管理（マイページ全員共通レイアウト） ── */}
         {activeTab === 'pages' && (
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-gold">マイページ管理 <span className="text-offwhite-dim/60 font-normal ml-2">完了者 {stats.rows.filter(r => r.status === 'completed' && r.access_token).length}件</span></h2>
-              <button onClick={() => void loadStats()} className="text-xs border border-gold/40 text-gold px-3 py-1.5 rounded-lg hover:bg-gold/10">再読み込み</button>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-sm font-bold text-gold">
+                マイページ・レイアウト編集
+                <span className="text-offwhite-dim/60 font-normal ml-2">（全ユーザー共通・即時反映）</span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <a
+                  href="/me/preview"
+                  target="_blank" rel="noopener noreferrer"
+                  className="text-xs border border-gold/40 text-gold px-3 py-1.5 rounded-lg hover:bg-gold/10"
+                >
+                  サンプルで確認
+                </a>
+                <button
+                  onClick={() => void loadMypageLayout()}
+                  className="text-xs border border-offwhite-dim/30 text-offwhite-dim hover:text-offwhite px-3 py-1.5 rounded-lg"
+                >
+                  再読み込み
+                </button>
+              </div>
             </div>
 
-            <p className="text-[11px] text-offwhite-dim/50">
-              編集対象：表示名・分身AI人格プロンプト・レポート本文・管理メモ・公開/非公開切替。
-              保存すると即座にマイページに反映されます。
-            </p>
+            {layoutEdit.loading && <p className="text-xs text-offwhite-dim/60">読み込み中…</p>}
+            {layoutEdit.error && <p className="text-xs text-red-300">{layoutEdit.error}</p>}
 
-            <div className="space-y-2 max-h-[75vh] overflow-y-auto">
-              {stats.rows
-                .filter(r => r.status === 'completed' && r.access_token)
-                .map(r => {
-                  const name = [r.last_name, r.first_name].filter(Boolean).join(' ') || r.clone_display_name || '(no-name)';
-                  const myPageUrl = `https://dna.kami-ai.jp/me/${r.id}?token=${r.access_token}`;
-                  const isEditing = pageEditId === r.id;
-                  const isHidden = !!r.hidden_at;
-                  return (
-                    <div key={r.id} className={`bg-navy-soft/40 border rounded-xl px-4 py-3 space-y-2 ${isEditing ? 'border-gold' : 'border-gold/15'}`}>
-                      <div className="flex flex-wrap items-baseline gap-2">
-                        <span className="text-sm font-bold text-offwhite">{name}</span>
-                        {r.clone_display_name && r.clone_display_name !== name && (
-                          <span className="text-[10px] text-gold/70">分身名: {r.clone_display_name}</span>
-                        )}
-                        <span className="text-xs text-offwhite-dim/60">{r.email}</span>
-                        {isHidden && (
-                          <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-400/40 rounded px-1.5 font-bold">非公開</span>
-                        )}
-                        <span className="text-[10px] text-offwhite-dim/40 ml-auto">{toJST(r.completed_at)} JST</span>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <a
-                          href={myPageUrl}
-                          target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-gold/80 hover:text-gold underline truncate max-w-xs"
-                        >
-                          {myPageUrl}
-                        </a>
-                        <button
-                          onClick={() => { void navigator.clipboard.writeText(myPageUrl); }}
-                          className="text-[10px] border border-offwhite-dim/20 text-offwhite-dim/60 hover:text-offwhite px-2 py-0.5 rounded shrink-0"
-                        >
-                          コピー
-                        </button>
-                        <button
-                          onClick={() => openMailForUser(r.id)}
-                          className="text-[10px] border border-blue-400/30 text-blue-300/70 hover:text-blue-300 px-2 py-0.5 rounded shrink-0"
-                        >
-                          メール送信
-                        </button>
-                        {isEditing ? (
+            {layoutEdit.draft && (
+              <div className="space-y-5">
+                {/* ヘッダー */}
+                <div className="bg-navy-soft/40 border border-gold/20 rounded-xl p-4 space-y-3">
+                  <p className="text-xs text-gold/80 uppercase tracking-wider font-bold">ヘッダー</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <Field label="ラベル（小さい英字 例: My Page）">
+                      <input
+                        type="text"
+                        value={layoutEdit.draft.header.label}
+                        onChange={e => updateLayout(l => ({ ...l, header: { ...l.header, label: e.target.value } }))}
+                        className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
+                      />
+                    </Field>
+                    <Field label="サブタイトル（タイトル下の説明）">
+                      <input
+                        type="text"
+                        value={layoutEdit.draft.header.subtitle}
+                        onChange={e => updateLayout(l => ({ ...l, header: { ...l.header, subtitle: e.target.value } }))}
+                        className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
+                      />
+                    </Field>
+                  </div>
+                </div>
+
+                {/* 導入ブロック */}
+                <div className="bg-navy-soft/40 border border-gold/20 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gold/80 uppercase tracking-wider font-bold">導入メッセージ（最上部の目立つボックス）</p>
+                    <label className="flex items-center gap-2 text-xs text-offwhite-dim cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={layoutEdit.draft.intro.visible}
+                        onChange={e => updateLayout(l => ({ ...l, intro: { ...l.intro, visible: e.target.checked } }))}
+                        className="accent-gold"
+                      />
+                      <span>表示する</span>
+                    </label>
+                  </div>
+                  <Field label="見出し">
+                    <input
+                      type="text"
+                      value={layoutEdit.draft.intro.title}
+                      onChange={e => updateLayout(l => ({ ...l, intro: { ...l.intro, title: e.target.value } }))}
+                      className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
+                    />
+                  </Field>
+                  <Field label="本文">
+                    <textarea
+                      value={layoutEdit.draft.intro.body}
+                      onChange={e => updateLayout(l => ({ ...l, intro: { ...l.intro, body: e.target.value } }))}
+                      rows={4}
+                      className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none resize-y leading-relaxed"
+                    />
+                  </Field>
+                </div>
+
+                {/* お知らせブロック */}
+                <div className="bg-navy-soft/40 border border-gold/20 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gold/80 uppercase tracking-wider font-bold">お知らせブロック（任意・キャンペーンや新機能告知用）</p>
+                    <label className="flex items-center gap-2 text-xs text-offwhite-dim cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={layoutEdit.draft.announcement.visible}
+                        onChange={e => updateLayout(l => ({ ...l, announcement: { ...l.announcement, visible: e.target.checked } }))}
+                        className="accent-gold"
+                      />
+                      <span>表示する</span>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <Field label="見出し">
+                      <input
+                        type="text"
+                        value={layoutEdit.draft.announcement.title}
+                        onChange={e => updateLayout(l => ({ ...l, announcement: { ...l.announcement, title: e.target.value } }))}
+                        placeholder="例: 新機能のお知らせ"
+                        className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
+                      />
+                    </Field>
+                    <Field label="リンクURL（任意）">
+                      <input
+                        type="text"
+                        value={layoutEdit.draft.announcement.linkUrl}
+                        onChange={e => updateLayout(l => ({ ...l, announcement: { ...l.announcement, linkUrl: e.target.value } }))}
+                        placeholder="https://..."
+                        className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
+                      />
+                    </Field>
+                  </div>
+                  <Field label="本文">
+                    <textarea
+                      value={layoutEdit.draft.announcement.body}
+                      onChange={e => updateLayout(l => ({ ...l, announcement: { ...l.announcement, body: e.target.value } }))}
+                      rows={3}
+                      className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none resize-y leading-relaxed"
+                    />
+                  </Field>
+                  <Field label="リンク文言">
+                    <input
+                      type="text"
+                      value={layoutEdit.draft.announcement.linkText}
+                      onChange={e => updateLayout(l => ({ ...l, announcement: { ...l.announcement, linkText: e.target.value } }))}
+                      placeholder="例: 詳しく見る"
+                      className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
+                    />
+                  </Field>
+                </div>
+
+                {/* セクション順序＋表示制御 */}
+                <div className="bg-navy-soft/40 border border-gold/20 rounded-xl p-4 space-y-3">
+                  <p className="text-xs text-gold/80 uppercase tracking-wider font-bold">セクション順序・表示・見出し文言</p>
+                  <p className="text-[11px] text-offwhite-dim/60">
+                    上から順にマイページに表示されます。各セクションの見出し文言を直接編集できます。
+                  </p>
+                  <div className="space-y-2">
+                    {layoutEdit.draft.sections.map((s, idx) => (
+                      <div key={s.key} className="bg-navy-deep/40 border border-gold/15 rounded-lg p-3 flex items-center gap-2 flex-wrap">
+                        <div className="flex flex-col gap-0.5">
                           <button
-                            onClick={cancelEditUser}
-                            className="text-[10px] border border-offwhite-dim/30 text-offwhite-dim hover:text-offwhite px-2 py-0.5 rounded shrink-0 ml-auto"
-                          >
-                            閉じる
-                          </button>
-                        ) : (
+                            type="button"
+                            onClick={() => moveSection(idx, -1)}
+                            disabled={idx === 0}
+                            className="text-[10px] border border-offwhite-dim/30 text-offwhite-dim hover:text-gold hover:border-gold/40 px-1.5 rounded disabled:opacity-20"
+                          >↑</button>
                           <button
-                            onClick={() => void startEditUser(r.id)}
-                            className="text-[10px] border border-gold/40 text-gold hover:bg-gold/10 px-2 py-0.5 rounded shrink-0 ml-auto"
-                          >
-                            編集
-                          </button>
-                        )}
-                      </div>
-                      <div className="flex gap-3 text-[10px] text-offwhite-dim/40">
-                        <span>DL: {r.download_count ?? 0}回</span>
-                        <span>Chat: {r.chat_count ?? 0}回</span>
-                        <span>トークン: <code className="font-mono">{r.access_token?.slice(0, 8)}…</code></span>
-                      </div>
-
-                      {/* 編集フォーム展開部 */}
-                      {isEditing && (
-                        <div className="mt-3 border-t border-gold/20 pt-3 space-y-3">
-                          {pageEdit.loading && (
-                            <p className="text-xs text-offwhite-dim/60">読み込み中…</p>
-                          )}
-                          {pageEdit.error && (
-                            <p className="text-xs text-red-300">{pageEdit.error}</p>
-                          )}
-                          {pageEdit.draft && (
-                            <>
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                                <Field label="姓">
-                                  <input
-                                    type="text"
-                                    value={pageEdit.draft.last_name ?? ''}
-                                    onChange={e => updateDraft('last_name', e.target.value || null)}
-                                    className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
-                                  />
-                                </Field>
-                                <Field label="名">
-                                  <input
-                                    type="text"
-                                    value={pageEdit.draft.first_name ?? ''}
-                                    onChange={e => updateDraft('first_name', e.target.value || null)}
-                                    className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
-                                  />
-                                </Field>
-                                <Field label="分身AI表示名">
-                                  <input
-                                    type="text"
-                                    value={pageEdit.draft.clone_display_name ?? ''}
-                                    onChange={e => updateDraft('clone_display_name', e.target.value || null)}
-                                    placeholder="（未設定）"
-                                    className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
-                                  />
-                                </Field>
-                              </div>
-
-                              <Field label={`分身AI人格プロンプト（${(pageEdit.draft.clone_system_prompt ?? '').length} 文字）`}>
-                                <textarea
-                                  value={pageEdit.draft.clone_system_prompt ?? ''}
-                                  onChange={e => updateDraft('clone_system_prompt', e.target.value || null)}
-                                  rows={8}
-                                  className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs font-mono focus:border-gold outline-none resize-y leading-relaxed"
-                                />
-                              </Field>
-
-                              <Field label={`レポート本文（${(pageEdit.draft.report_text ?? '').length} 文字）`}>
-                                <textarea
-                                  value={pageEdit.draft.report_text ?? ''}
-                                  onChange={e => updateDraft('report_text', e.target.value || null)}
-                                  rows={10}
-                                  className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs font-mono focus:border-gold outline-none resize-y leading-relaxed"
-                                />
-                              </Field>
-
-                              <Field label="管理メモ（マイページからは見えません）">
-                                <textarea
-                                  value={pageEdit.draft.admin_memo ?? ''}
-                                  onChange={e => updateDraft('admin_memo', e.target.value || null)}
-                                  rows={3}
-                                  placeholder="運営側のメモ・特記事項など"
-                                  className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none resize-y leading-relaxed"
-                                />
-                              </Field>
-
-                              <label className="flex items-center gap-2 text-xs text-offwhite-dim cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={!!pageEdit.draft.hidden_at}
-                                  onChange={e => updateDraft('hidden_at', e.target.checked)}
-                                  className="accent-red-400"
-                                />
-                                <span>非公開にする（マイページ・分身AIへのアクセスを遮断）</span>
-                              </label>
-
-                              <div className="flex items-center gap-2 pt-2">
-                                <button
-                                  onClick={() => void saveEditUser()}
-                                  disabled={pageEdit.saving}
-                                  className="px-4 py-1.5 bg-gold text-navy-deep font-bold rounded-lg text-xs hover:bg-gold-light disabled:opacity-40"
-                                >
-                                  {pageEdit.saving ? '保存中…' : '保存'}
-                                </button>
-                                <a
-                                  href={myPageUrl}
-                                  target="_blank" rel="noopener noreferrer"
-                                  className="text-xs border border-gold/40 text-gold/80 hover:text-gold px-3 py-1.5 rounded-lg"
-                                >
-                                  マイページで確認
-                                </a>
-                                {pageEdit.savedAt && (
-                                  <span className="text-[11px] text-emerald-300">
-                                    保存しました（{new Date(pageEdit.savedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', second: '2-digit' })}）
-                                  </span>
-                                )}
-                              </div>
-                            </>
-                          )}
+                            type="button"
+                            onClick={() => moveSection(idx, 1)}
+                            disabled={idx === layoutEdit.draft!.sections.length - 1}
+                            className="text-[10px] border border-offwhite-dim/30 text-offwhite-dim hover:text-gold hover:border-gold/40 px-1.5 rounded disabled:opacity-20"
+                          >↓</button>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              {stats.rows.filter(r => r.status === 'completed' && r.access_token).length === 0 && (
-                <p className="text-offwhite-dim/50 text-sm text-center py-16">完了者がいません</p>
-              )}
-            </div>
+                        <span className="text-[10px] text-offwhite-dim/60 font-mono w-16">{s.key}</span>
+                        <label className="flex items-center gap-1.5 text-[11px] text-offwhite-dim cursor-pointer shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={s.visible}
+                            onChange={e => updateLayout(l => ({
+                              ...l,
+                              sections: l.sections.map((x, i) => i === idx ? { ...x, visible: e.target.checked } : x),
+                            }))}
+                            className="accent-gold"
+                          />
+                          <span>表示</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={s.title}
+                          onChange={e => updateLayout(l => ({
+                            ...l,
+                            sections: l.sections.map((x, i) => i === idx ? { ...x, title: e.target.value } : x),
+                          }))}
+                          className="flex-1 min-w-[200px] bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* フッター */}
+                <div className="bg-navy-soft/40 border border-gold/20 rounded-xl p-4 space-y-3">
+                  <p className="text-xs text-gold/80 uppercase tracking-wider font-bold">フッター注意書き</p>
+                  <Field label="本文">
+                    <textarea
+                      value={layoutEdit.draft.footer.note}
+                      onChange={e => updateLayout(l => ({ ...l, footer: { ...l.footer, note: e.target.value } }))}
+                      rows={2}
+                      className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none resize-y leading-relaxed"
+                    />
+                  </Field>
+                </div>
+
+                {/* 保存バー */}
+                <div className="sticky bottom-0 bg-navy-deep/95 backdrop-blur border border-gold/30 rounded-xl p-3 flex items-center gap-3 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => void saveMypageLayout()}
+                    disabled={layoutEdit.saving}
+                    className="px-5 py-2 bg-gold text-navy-deep font-bold rounded-lg text-sm hover:bg-gold-light disabled:opacity-40"
+                  >
+                    {layoutEdit.saving ? '保存中…' : '保存して全ユーザーに反映'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetLayoutDraft}
+                    disabled={layoutEdit.saving}
+                    className="text-xs border border-offwhite-dim/30 text-offwhite-dim hover:text-offwhite px-3 py-1.5 rounded-lg"
+                  >
+                    変更を取り消す
+                  </button>
+                  {layoutEdit.savedAt && (
+                    <span className="text-xs text-emerald-300">
+                      保存しました（{new Date(layoutEdit.savedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', second: '2-digit' })}）
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
           </section>
         )}
 
