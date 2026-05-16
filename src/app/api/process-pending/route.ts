@@ -345,12 +345,17 @@ export async function POST(req: Request) {
   let mailError: string | undefined;
 
   // 【一時停止ガード】Gmail障害時に環境変数で完了メール送信を止める
-  if (process.env.DISABLE_COMPLETION_MAIL === 'true') {
-    mailError = 'mail_suspended:DISABLE_COMPLETION_MAIL';
+  // 個別IDレベルの自動メール送信スキップ：YO が手動で再送するケース（例：誕生日修正による再生成）
+  //   error_log に `SKIP_AUTO_MAIL` を含む場合のみスキップ。他レコードには影響しない。
+  const skipAutoMailForThisRow = ((row.error_log ?? '') as string).includes('SKIP_AUTO_MAIL');
+  if (process.env.DISABLE_COMPLETION_MAIL === 'true' || skipAutoMailForThisRow) {
+    mailError = skipAutoMailForThisRow
+      ? 'mail_skipped:SKIP_AUTO_MAIL_flag_in_error_log'
+      : 'mail_suspended:DISABLE_COMPLETION_MAIL';
     await supa
       .from('dna_diagnoses')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ error_log: `${pdfDebugLog}mail_suspended;` } as any)
+      .update({ error_log: `${pdfDebugLog}${skipAutoMailForThisRow ? 'mail_skipped_by_flag;' : 'mail_suspended;'}` } as any)
       .eq('id', id);
   } else if (row.email && row.access_token) {
     const myPageUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://dna.kami-ai.jp'}/me/${id}?token=${row.access_token}`;
