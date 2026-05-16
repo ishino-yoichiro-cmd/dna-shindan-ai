@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
-import { DEFAULT_MYPAGE_LAYOUT, type MyPageLayout } from '@/lib/mypage-layout';
+import { DEFAULT_MYPAGE_LAYOUT, type MyPageLayout, type MyPageSectionKey } from '@/lib/mypage-layout';
 import EditNarrativeCard from '@/components/me/EditNarrativeCard';
 
 interface Props {
@@ -307,9 +307,13 @@ export default function MyPage({ params }: Props) {
     if (kind === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
   };
 
-  // セクションタイトル参照（admin で編集された値を採用）
+  // セクションタイトル・内部フィールド参照（admin で編集された値を採用、無ければ default）
   const titleOf = (key: string, fallback: string) =>
     layout.sections.find(s => s.key === key)?.title ?? fallback;
+  const fOf = (key: MyPageSectionKey, fk: string, fb = '') =>
+    layout.sections.find(s => s.key === key)?.fields?.[fk] ?? fb;
+  // share / referral の {name} プレースホルダ展開
+  const shareMsgFor = (template: string) => template.replace(/\{name\}/g, shareDisplayName);
 
   // 各セクションを key -> JSX に切り出し（順序・表示は layout.sections で制御）
   const sectionMap: Record<string, React.ReactNode> = {
@@ -322,13 +326,13 @@ export default function MyPage({ params }: Props) {
               href={pdfDownloadHref}
               className="block w-full text-center bg-gold text-navy-deep font-bold py-3 rounded-lg hover:bg-gold-light"
             >
-              PDFをダウンロード
+              {fOf('report', 'ctaLabel', 'PDFをダウンロード')}
             </a>
-            <p className="text-xs text-offwhite-dim mt-3">命術16・心理スコア・あなたの記述を統合した50ページ以上の統合レポート。</p>
+            <p className="text-xs text-offwhite-dim mt-3 whitespace-pre-wrap">{fOf('report', 'description')}</p>
           </>
         ) : (
-          <div className="p-4 rounded-lg bg-navy-deep/40 border border-offwhite-dim/15 text-sm">
-            生成中 — 完成まで残り数分です。完了したらこのページをリロードしてください。
+          <div className="p-4 rounded-lg bg-navy-deep/40 border border-offwhite-dim/15 text-sm whitespace-pre-wrap">
+            {fOf('report', 'pendingMessage')}
           </div>
         )}
       </Card>
@@ -339,27 +343,30 @@ export default function MyPage({ params }: Props) {
         {reportReady ? (
           <>
             <div className="text-sm leading-relaxed mb-4 space-y-3">
-              <div className="border border-gold/30 rounded-lg p-3 bg-navy-deep/40">
-                <p className="font-bold text-gold text-sm mb-1.5">ChatGPT との違い</p>
-                <p className="text-offwhite-dim/90 text-xs leading-relaxed">
-                  汎用 AI は誰の壁打ち相手にもなれるが、あなた自身のことは知らない。
-                  この分身 AI は、あなたが書いた自由記述8問・命術16・心理スコア・文体サンプルを内面化し、
-                  「あなたの言葉・価値観・落とし穴」を起点に応答する。同じ質問でも、返ってくる答えが違う。
-                </p>
-              </div>
-              <p className="font-bold text-offwhite text-base">分身ボットの使い方</p>
-              <div>
-                <p className="font-bold text-gold">１ ご自身をさらに深掘りする</p>
-                <p className="text-offwhite-dim/90 text-xs mt-0.5 pl-1">あなたがまだ気づいていないあなた自身のことを探求してみてください。</p>
-              </div>
-              <div>
-                <p className="font-bold text-gold">２ 仕事仲間やチームに共有する</p>
-                <p className="text-offwhite-dim/90 text-xs mt-0.5 pl-1">自分の取り扱い方を知ってもらえることで、より深い関係性を築くことができます。</p>
-              </div>
-              <div>
-                <p className="font-bold text-gold">３ パートナーやご友人と共有する</p>
-                <p className="text-offwhite-dim/90 text-xs mt-0.5 pl-1">今まで以上に自分の深層を理解してもらうことで、より濃い付き合いができます。</p>
-              </div>
+              {(fOf('clone', 'diffHeading') || fOf('clone', 'diffBody')) && (
+                <div className="border border-gold/30 rounded-lg p-3 bg-navy-deep/40">
+                  {fOf('clone', 'diffHeading') && (
+                    <p className="font-bold text-gold text-sm mb-1.5">{fOf('clone', 'diffHeading')}</p>
+                  )}
+                  {fOf('clone', 'diffBody') && (
+                    <p className="text-offwhite-dim/90 text-xs leading-relaxed whitespace-pre-wrap">{fOf('clone', 'diffBody')}</p>
+                  )}
+                </div>
+              )}
+              {fOf('clone', 'howToHeading') && (
+                <p className="font-bold text-offwhite text-base">{fOf('clone', 'howToHeading')}</p>
+              )}
+              {[1, 2, 3].map(n => {
+                const t = fOf('clone', `step${n}Title`);
+                const b = fOf('clone', `step${n}Body`);
+                if (!t && !b) return null;
+                return (
+                  <div key={n}>
+                    {t && <p className="font-bold text-gold">{t}</p>}
+                    {b && <p className="text-offwhite-dim/90 text-xs mt-0.5 pl-1 whitespace-pre-wrap">{b}</p>}
+                  </div>
+                );
+              })}
             </div>
 
             <a
@@ -368,10 +375,10 @@ export default function MyPage({ params }: Props) {
               rel="noopener noreferrer"
               className="block w-full text-center bg-gold text-navy-deep font-bold py-3 rounded-lg hover:bg-gold-light"
             >
-              分身AIに話しかける
+              {fOf('clone', 'ctaLabel', '分身AIに話しかける')}
             </a>
             <div className="mt-5 space-y-2">
-              <label className="block text-xs text-offwhite-dim">公開時の表示名（本名を出したくない時）</label>
+              <label className="block text-xs text-offwhite-dim">{fOf('clone', 'displayNameLabel')}</label>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -390,11 +397,11 @@ export default function MyPage({ params }: Props) {
                   {savingName ? '保存中…' : '保存'}
                 </button>
               </div>
-              {savedName && <p className="text-xs text-gold">保存しました（分身AIページのタイトルに反映）</p>}
+              {savedName && <p className="text-xs text-gold">{fOf('clone', 'savedMessage')}</p>}
             </div>
           </>
         ) : (
-          <p className="text-sm text-offwhite-dim">レポート完成後に有効化されます。</p>
+          <p className="text-sm text-offwhite-dim">{fOf('clone', 'lockedMessage')}</p>
         )}
       </Card>
     ),
@@ -402,26 +409,24 @@ export default function MyPage({ params }: Props) {
       <Card>
         <h2 className="text-lg font-bold text-gold mb-3">{titleOf('share', '分身AIボットをシェアしてみませんか？')}</h2>
         <div className="text-sm text-offwhite leading-relaxed mb-4 space-y-3">
-          <p>
-            仕事の仲間・友人や家族に、分身AIのURLを渡して、自分のことをもっと知ってもらいましょう。
-            自分の正体を知ってもらうことで、お互いの特性がわかり、さらに関係性を構築しやすくなります。
-          </p>
-          <p>
-            パートナー関係においても、お互いが直接聞きづらいことも分身AIボットに確認できてしまうため、高い効果を発揮します。
-          </p>
-          <p>相手も診断をやれば双方の相性も見ることができます。</p>
-          <p className="text-xs text-offwhite-dim">
-            ※レポート本体は本人だけが閲覧可能で、シェアできるのは「あなたの分身AIへのリンク」のみです。
-          </p>
+          {['body1', 'body2', 'body3'].map(k => {
+            const v = fOf('share', k);
+            return v ? <p key={k} className="whitespace-pre-wrap">{v}</p> : null;
+          })}
+          {fOf('share', 'securityNote') && (
+            <p className="text-xs text-offwhite-dim whitespace-pre-wrap">{fOf('share', 'securityNote')}</p>
+          )}
         </div>
         <div className="space-y-2 mb-5">
-          <p className="text-xs text-offwhite-dim">分身AIのリンクを友人・仲間・家族に渡す</p>
+          {fOf('share', 'shareLeadText') && (
+            <p className="text-xs text-offwhite-dim">{fOf('share', 'shareLeadText')}</p>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-            <ShareBtn label="X" onClick={() => onShare(`私(${shareDisplayName})の分身AIです。話しかけてみてください。`, cloneShareUrl, 'twitter')} />
-            <ShareBtn label="LINE" onClick={() => onShare(`私(${shareDisplayName})の分身AIです。話しかけてみてください。`, cloneShareUrl, 'line')} />
-            <ShareBtn label="Facebook" onClick={() => onShare(`私(${shareDisplayName})の分身AIです。話しかけてみてください。`, cloneShareUrl, 'facebook')} />
-            <ShareBtn label="Threads" onClick={() => onShare(`私(${shareDisplayName})の分身AIです。話しかけてみてください。`, cloneShareUrl, 'threads')} />
-            <ShareBtn label="その他" onClick={() => onShare(`私(${shareDisplayName})の分身AIです。話しかけてみてください。`, cloneShareUrl, 'native')} />
+            <ShareBtn label="X"        onClick={() => onShare(shareMsgFor(fOf('share', 'shareMessage')), cloneShareUrl, 'twitter')} />
+            <ShareBtn label="LINE"     onClick={() => onShare(shareMsgFor(fOf('share', 'shareMessage')), cloneShareUrl, 'line')} />
+            <ShareBtn label="Facebook" onClick={() => onShare(shareMsgFor(fOf('share', 'shareMessage')), cloneShareUrl, 'facebook')} />
+            <ShareBtn label="Threads"  onClick={() => onShare(shareMsgFor(fOf('share', 'shareMessage')), cloneShareUrl, 'threads')} />
+            <ShareBtn label="その他"    onClick={() => onShare(shareMsgFor(fOf('share', 'shareMessage')), cloneShareUrl, 'native')} />
           </div>
           <div className="flex gap-2 mt-2 items-center">
             <input readOnly value={cloneShareUrl}
@@ -441,15 +446,15 @@ export default function MyPage({ params }: Props) {
     referral: reportReady ? (
       <Card>
         <h2 className="text-lg font-bold text-gold mb-3">{titleOf('referral', 'ご友人にもDNA診断を紹介してあげてください')}</h2>
-        <p className="text-sm text-offwhite-dim leading-relaxed mb-4">
-          DNA診断は、Claude Codeが飛躍的に賢くなる分身AIを、1人でも多くの方に活用していただきたくて、無料で公開しています。診断レポートでClaudeCodeが賢くなったり、分身AIボットがお役に立てた場合には、是非このDNA診断を、ご友人の経営者にも伝えてあげてください。
-        </p>
+        {fOf('referral', 'body') && (
+          <p className="text-sm text-offwhite-dim leading-relaxed mb-4 whitespace-pre-wrap">{fOf('referral', 'body')}</p>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
-          <ShareBtn label="X" onClick={() => onShare('DNA診断AIで、自分の分身AIを作る診断を受けた。ClaudeCodeが飛躍的に賢くなるのでおすすめ。', baseUrl, 'twitter')} />
-          <ShareBtn label="LINE" onClick={() => onShare('DNA診断AIで、自分の分身AIを作る診断を受けた。ClaudeCodeが飛躍的に賢くなるのでおすすめ。', baseUrl, 'line')} />
-          <ShareBtn label="Facebook" onClick={() => onShare('DNA診断AIで、自分の分身AIを作る診断を受けた。ClaudeCodeが飛躍的に賢くなるのでおすすめ。', baseUrl, 'facebook')} />
-          <ShareBtn label="Threads" onClick={() => onShare('DNA診断AIで、自分の分身AIを作る診断を受けた。ClaudeCodeが飛躍的に賢くなるのでおすすめ。', baseUrl, 'threads')} />
-          <ShareBtn label="その他" onClick={() => onShare('DNA診断AIで、自分の分身AIを作る診断を受けた。ClaudeCodeが飛躍的に賢くなるのでおすすめ。', baseUrl, 'native')} />
+          <ShareBtn label="X"        onClick={() => onShare(fOf('referral', 'shareMessage'), baseUrl, 'twitter')} />
+          <ShareBtn label="LINE"     onClick={() => onShare(fOf('referral', 'shareMessage'), baseUrl, 'line')} />
+          <ShareBtn label="Facebook" onClick={() => onShare(fOf('referral', 'shareMessage'), baseUrl, 'facebook')} />
+          <ShareBtn label="Threads"  onClick={() => onShare(fOf('referral', 'shareMessage'), baseUrl, 'threads')} />
+          <ShareBtn label="その他"    onClick={() => onShare(fOf('referral', 'shareMessage'), baseUrl, 'native')} />
         </div>
         <div className="flex gap-2 items-center">
           <input readOnly value={baseUrl}
@@ -470,35 +475,33 @@ export default function MyPage({ params }: Props) {
         <h2 className="text-lg font-bold text-gold mb-3">{titleOf('feedback', '診断レポート・分身AI・分身AIボットについての感想をお聞かせください')}</h2>
         {feedbackSent ? (
           <div className="space-y-4">
-            <p className="text-sm text-offwhite leading-relaxed">
-              貴重なご意見ありがとうございます。<br />
-              今後の開発に活かさせていただきます。
-            </p>
+            <p className="text-sm text-offwhite leading-relaxed whitespace-pre-wrap">{fOf('feedback', 'sentThanks')}</p>
             <div className="bg-gold/10 border border-gold/40 rounded-xl p-5 space-y-4">
               <p className="text-sm text-offwhite leading-relaxed">
-                お礼として<br />
-                <strong className="text-gold">「ClaudeCode初心者が初日に設定すべき7つの神設定」</strong><br />
-                をプレゼントさせていただきます。
+                {fOf('feedback', 'giftPrefix')}<br />
+                <strong className="text-gold">{fOf('feedback', 'giftHighlight')}</strong><br />
+                {fOf('feedback', 'giftSuffix')}
               </p>
-              <a
-                href="https://bit.ly/tips7"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full text-center bg-gold text-navy-deep font-bold py-3 rounded-lg text-sm hover:bg-gold-light"
-              >
-                プレゼントを受け取る
-              </a>
-              <p className="text-xs text-offwhite-dim/70 leading-relaxed">
-                ご活用いただきClaudeCodeをより使いこなしていただけたら嬉しいです。<br />
-                次回の神プロダクトのご案内もお楽しみに。
-              </p>
+              {fOf('feedback', 'giftUrl') && (
+                <a
+                  href={fOf('feedback', 'giftUrl')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full text-center bg-gold text-navy-deep font-bold py-3 rounded-lg text-sm hover:bg-gold-light"
+                >
+                  {fOf('feedback', 'giftButtonLabel', 'プレゼントを受け取る')}
+                </a>
+              )}
+              {fOf('feedback', 'giftPostText') && (
+                <p className="text-xs text-offwhite-dim/70 leading-relaxed whitespace-pre-wrap">{fOf('feedback', 'giftPostText')}</p>
+              )}
             </div>
             <button
               type="button"
               onClick={() => { setFeedbackSent(false); setFeedback(''); }}
               className="w-full border border-gold/40 text-gold py-2 rounded-lg text-sm hover:bg-gold/10"
             >
-              再投稿する
+              {fOf('feedback', 'replyAgainLabel', '再投稿する')}
             </button>
           </div>
         ) : (
@@ -507,7 +510,7 @@ export default function MyPage({ params }: Props) {
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               rows={4}
-              placeholder="診断レポート・分身AI・分身AIボットの使い心地、気づいたこと、改善のご提案など、何でもお気軽にどうぞ。"
+              placeholder={fOf('feedback', 'placeholder')}
               className="w-full bg-navy-deep/60 border border-gold/30 rounded-lg px-4 py-3 text-sm text-offwhite placeholder-offwhite-dim/40 focus:border-gold resize-none"
             />
             {feedbackError && <p className="text-xs text-red-300">{feedbackError}</p>}
@@ -517,7 +520,7 @@ export default function MyPage({ params }: Props) {
               disabled={feedbackSending || !feedback.trim()}
               className="w-full bg-gold text-navy-deep font-bold py-3 rounded-lg hover:bg-gold-light disabled:opacity-40 text-sm"
             >
-              {feedbackSending ? '送信中…' : '送信する'}
+              {feedbackSending ? '送信中…' : fOf('feedback', 'submitLabel', '送信する')}
             </button>
           </div>
         )}

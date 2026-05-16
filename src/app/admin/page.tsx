@@ -159,10 +159,12 @@ interface ThreadEntry {
 }
 
 // マイページ全員共通レイアウト編集
+type LayoutSectionKey = 'report' | 'clone' | 'share' | 'referral' | 'feedback' | 'match' | 'edit-narrative';
 interface LayoutSection {
-  key: 'report' | 'clone' | 'share' | 'referral' | 'feedback' | 'match';
+  key: LayoutSectionKey;
   visible: boolean;
   title: string;
+  fields: Record<string, string>;
 }
 interface MypageLayout {
   header: { label: string; subtitle: string };
@@ -171,6 +173,62 @@ interface MypageLayout {
   sections: LayoutSection[];
   footer: { note: string };
 }
+
+// 各セクションの編集可能フィールド定義（admin UI で出す textarea/input 一覧）
+interface SectionFieldSpec {
+  key: string;
+  label: string;
+  multiline?: boolean;
+  hint?: string;
+}
+const SECTION_FIELD_SPECS: Record<LayoutSectionKey, SectionFieldSpec[]> = {
+  report: [
+    { key: 'ctaLabel',       label: 'PDFダウンロードボタン文言' },
+    { key: 'description',    label: '説明文（PDFの下に小さく表示）', multiline: true },
+    { key: 'pendingMessage', label: '生成中メッセージ（未完成時のみ表示）', multiline: true },
+  ],
+  clone: [
+    { key: 'diffHeading',      label: '差別化見出し（空欄で非表示）' },
+    { key: 'diffBody',         label: '差別化本文（ChatGPT との違い等）', multiline: true },
+    { key: 'howToHeading',     label: '使い方セクション見出し' },
+    { key: 'step1Title',       label: 'STEP1 タイトル' },
+    { key: 'step1Body',        label: 'STEP1 本文', multiline: true },
+    { key: 'step2Title',       label: 'STEP2 タイトル' },
+    { key: 'step2Body',        label: 'STEP2 本文', multiline: true },
+    { key: 'step3Title',       label: 'STEP3 タイトル' },
+    { key: 'step3Body',        label: 'STEP3 本文', multiline: true },
+    { key: 'ctaLabel',         label: 'CTAボタン文言' },
+    { key: 'displayNameLabel', label: '表示名フィールドのラベル' },
+    { key: 'savedMessage',     label: '表示名保存後のメッセージ' },
+    { key: 'lockedMessage',    label: 'レポート未完成時の文言' },
+  ],
+  share: [
+    { key: 'body1',         label: '本文1段落目', multiline: true },
+    { key: 'body2',         label: '本文2段落目', multiline: true },
+    { key: 'body3',         label: '本文3段落目', multiline: true },
+    { key: 'securityNote',  label: '注意書き（小さい文字）', multiline: true },
+    { key: 'shareLeadText', label: 'シェアボタン直前の文言' },
+    { key: 'shareMessage',  label: 'シェア本文テンプレ', multiline: true, hint: '{name} は公開表示名に自動置換される' },
+  ],
+  referral: [
+    { key: 'body',         label: '本文', multiline: true },
+    { key: 'shareMessage', label: 'シェア本文テンプレ', multiline: true },
+  ],
+  feedback: [
+    { key: 'placeholder',     label: '入力プレースホルダ', multiline: true },
+    { key: 'submitLabel',     label: '送信ボタン文言' },
+    { key: 'sentThanks',      label: '送信後のお礼メッセージ', multiline: true },
+    { key: 'giftPrefix',      label: '特典導入文' },
+    { key: 'giftHighlight',   label: '特典タイトル（強調）' },
+    { key: 'giftSuffix',      label: '特典締めくくり文' },
+    { key: 'giftButtonLabel', label: '特典CTAボタン文言' },
+    { key: 'giftUrl',         label: '特典リンクURL', hint: 'http:// または https:// 必須' },
+    { key: 'giftPostText',    label: '特典後の補足文', multiline: true },
+    { key: 'replyAgainLabel', label: '再投稿ボタン文言' },
+  ],
+  match: [],
+  'edit-narrative': [],
+};
 interface LayoutEditState {
   loading: boolean;
   saving: boolean;
@@ -209,6 +267,7 @@ export default function AdminPage() {
   const [thread, setThread] = useState<ThreadEntry[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
   const [inboxFilter, setInboxFilter] = useState<'all' | 'unread'>('all');
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [layoutEdit, setLayoutEdit] = useState<LayoutEditState>({
     loading: false, saving: false, error: '', savedAt: null, draft: null, original: null,
   });
@@ -525,6 +584,13 @@ export default function AdminPage() {
       [sections[idx], sections[n]] = [sections[n], sections[idx]];
       return { ...l, sections };
     });
+  };
+
+  const updateSectionField = (idx: number, fk: string, fv: string) => {
+    updateLayout(l => ({
+      ...l,
+      sections: l.sections.map((s, i) => i === idx ? { ...s, fields: { ...s.fields, [fk]: fv } } : s),
+    }));
   };
 
   const resetLayoutDraft = () => {
@@ -1672,46 +1738,95 @@ export default function AdminPage() {
                     上から順にマイページに表示されます。各セクションの見出し文言を直接編集できます。
                   </p>
                   <div className="space-y-2">
-                    {layoutEdit.draft.sections.map((s, idx) => (
-                      <div key={s.key} className="bg-navy-deep/40 border border-gold/15 rounded-lg p-3 flex items-center gap-2 flex-wrap">
-                        <div className="flex flex-col gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => moveSection(idx, -1)}
-                            disabled={idx === 0}
-                            className="text-[10px] border border-offwhite-dim/30 text-offwhite-dim hover:text-gold hover:border-gold/40 px-1.5 rounded disabled:opacity-20"
-                          >↑</button>
-                          <button
-                            type="button"
-                            onClick={() => moveSection(idx, 1)}
-                            disabled={idx === layoutEdit.draft!.sections.length - 1}
-                            className="text-[10px] border border-offwhite-dim/30 text-offwhite-dim hover:text-gold hover:border-gold/40 px-1.5 rounded disabled:opacity-20"
-                          >↓</button>
+                    {layoutEdit.draft.sections.map((s, idx) => {
+                      const specs = SECTION_FIELD_SPECS[s.key as LayoutSectionKey] ?? [];
+                      const isExpanded = expandedSection === s.key;
+                      return (
+                        <div key={s.key} className={`bg-navy-deep/40 border rounded-lg ${isExpanded ? 'border-gold' : 'border-gold/15'}`}>
+                          <div className="p-3 flex items-center gap-2 flex-wrap">
+                            <div className="flex flex-col gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => moveSection(idx, -1)}
+                                disabled={idx === 0}
+                                className="text-[10px] border border-offwhite-dim/30 text-offwhite-dim hover:text-gold hover:border-gold/40 px-1.5 rounded disabled:opacity-20"
+                              >↑</button>
+                              <button
+                                type="button"
+                                onClick={() => moveSection(idx, 1)}
+                                disabled={idx === layoutEdit.draft!.sections.length - 1}
+                                className="text-[10px] border border-offwhite-dim/30 text-offwhite-dim hover:text-gold hover:border-gold/40 px-1.5 rounded disabled:opacity-20"
+                              >↓</button>
+                            </div>
+                            <span className="text-[10px] text-offwhite-dim/60 font-mono w-24">{s.key}</span>
+                            <label className="flex items-center gap-1.5 text-[11px] text-offwhite-dim cursor-pointer shrink-0">
+                              <input
+                                type="checkbox"
+                                checked={s.visible}
+                                onChange={e => updateLayout(l => ({
+                                  ...l,
+                                  sections: l.sections.map((x, i) => i === idx ? { ...x, visible: e.target.checked } : x),
+                                }))}
+                                className="accent-gold"
+                              />
+                              <span>表示</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={s.title}
+                              onChange={e => updateLayout(l => ({
+                                ...l,
+                                sections: l.sections.map((x, i) => i === idx ? { ...x, title: e.target.value } : x),
+                              }))}
+                              className="flex-1 min-w-[200px] bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
+                            />
+                            {specs.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedSection(isExpanded ? null : s.key)}
+                                className={`text-[10px] border px-2 py-1 rounded shrink-0 ${isExpanded ? 'border-gold text-gold bg-gold/10' : 'border-gold/40 text-gold/80 hover:bg-gold/10'}`}
+                              >
+                                {isExpanded ? '閉じる' : `内容を編集（${specs.length}項目）`}
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-offwhite-dim/40 shrink-0 px-2">編集項目なし</span>
+                            )}
+                          </div>
+
+                          {/* 展開時：fields 編集パネル */}
+                          {isExpanded && specs.length > 0 && (
+                            <div className="border-t border-gold/20 p-3 space-y-3 bg-navy-deep/30">
+                              <p className="text-[10px] text-offwhite-dim/50">
+                                各項目を空にするとマイページ側で非表示になります（一部）。
+                                変更は「保存して全ユーザーに反映」ボタンで確定します。
+                              </p>
+                              {specs.map(spec => (
+                                <Field key={spec.key} label={spec.label}>
+                                  {spec.multiline ? (
+                                    <textarea
+                                      value={s.fields[spec.key] ?? ''}
+                                      onChange={e => updateSectionField(idx, spec.key, e.target.value)}
+                                      rows={3}
+                                      className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none resize-y leading-relaxed"
+                                    />
+                                  ) : (
+                                    <input
+                                      type="text"
+                                      value={s.fields[spec.key] ?? ''}
+                                      onChange={e => updateSectionField(idx, spec.key, e.target.value)}
+                                      className="w-full bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
+                                    />
+                                  )}
+                                  {spec.hint && (
+                                    <p className="text-[10px] text-offwhite-dim/50 mt-0.5">{spec.hint}</p>
+                                  )}
+                                </Field>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <span className="text-[10px] text-offwhite-dim/60 font-mono w-16">{s.key}</span>
-                        <label className="flex items-center gap-1.5 text-[11px] text-offwhite-dim cursor-pointer shrink-0">
-                          <input
-                            type="checkbox"
-                            checked={s.visible}
-                            onChange={e => updateLayout(l => ({
-                              ...l,
-                              sections: l.sections.map((x, i) => i === idx ? { ...x, visible: e.target.checked } : x),
-                            }))}
-                            className="accent-gold"
-                          />
-                          <span>表示</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={s.title}
-                          onChange={e => updateLayout(l => ({
-                            ...l,
-                            sections: l.sections.map((x, i) => i === idx ? { ...x, title: e.target.value } : x),
-                          }))}
-                          className="flex-1 min-w-[200px] bg-navy-deep/60 border border-gold/30 rounded px-2 py-1.5 text-offwhite text-xs focus:border-gold outline-none"
-                        />
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
