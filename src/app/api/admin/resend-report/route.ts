@@ -28,23 +28,20 @@ interface MailContent {
   myPageUrl: string;
 }
 
-function buildMailContent(args: {
-  email: string;
-  firstName: string | null | undefined;
-  id: string;
-  accessToken: string;
-  siteUrl: string;
-}): MailContent {
-  const greeting = args.firstName ? `${args.firstName} さん` : 'こんにちは';
-  const myPageUrl = `${args.siteUrl}/me/${args.id}?token=${args.accessToken}`;
-  const subject = '【DNA診断AI】あなたのレポートが完成しました（再送）';
-  const text = `${greeting}
+// HTML エンティティ最小エスケープ（customText を HTML に差し込むときに使う）
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
-お待たせしました。
+function defaultBodyText(args: { firstName: string | null | undefined; myPageUrl: string }): string {
+  const greeting = args.firstName ? `${args.firstName} さん` : 'こんにちは';
+  return `${greeting}
+
+お待たせしてしまい申し訳ありません。
 あなたのDNA診断レポートが完成しました。
 
 ▼ あなた専用のマイページ（このリンクは本人専用です）
-${myPageUrl}
+${args.myPageUrl}
 
 このマイページから：
 ・50ページ以上の統合レポートPDFをダウンロード
@@ -56,13 +53,37 @@ ${myPageUrl}
 — DNA診断AI
 dna@kami-ai.jp
 `;
+}
+
+function buildMailContent(args: {
+  email: string;
+  firstName: string | null | undefined;
+  id: string;
+  accessToken: string;
+  siteUrl: string;
+  customText?: string | null;
+}): MailContent {
+  const myPageUrl = `${args.siteUrl}/me/${args.id}?token=${args.accessToken}`;
+  const subject = '【DNA診断AI】あなたのレポートが完成しました（再送）';
+
+  // テキスト本文：custom があればそれ、なければデフォルト
+  const text = (args.customText && args.customText.trim().length > 0)
+    ? args.customText
+    : defaultBodyText({ firstName: args.firstName, myPageUrl });
+
+  // HTML 本文：装飾の枠は固定し、中央の本文段落だけ customText の改行を反映する
+  // 「マイページを開く」ボタンとフッタは常に付ける（リンクの保守性のため）
+  const textHtml = escHtml(text)
+    .split(/\n{2,}/)
+    .map((para) => `<p style="margin:0 0 14px;white-space:pre-wrap;">${para.replace(/\n/g, '<br>')}</p>`)
+    .join('');
+
   const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"></head>
 <body style="font-family:'Noto Sans JP',-apple-system,sans-serif;background:#fbfaf6;color:#1f2937;padding:24px;line-height:1.7;">
   <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e5e0d3;border-radius:12px;padding:32px;">
     <p style="color:#c9a44b;font-size:11px;letter-spacing:3px;text-transform:uppercase;margin:0 0 8px;">DNA SHINDAN AI</p>
     <h1 style="font-size:20px;color:#0a1f44;margin:0 0 20px;">レポートが完成しました</h1>
-    <p>${greeting}</p>
-    <p>50ページ以上の統合レポートと、あなた専用の分身AIボットが完成しました。下記のマイページから、いつでもアクセスできます。</p>
+    ${textHtml}
     <p style="text-align:center;margin:28px 0;">
       <a href="${myPageUrl}" style="display:inline-block;background:#c9a44b;color:#0a1f44;padding:14px 32px;border-radius:24px;text-decoration:none;font-weight:bold;">
         マイページを開く
@@ -94,7 +115,7 @@ export async function POST(req: Request) {
     return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
 
-  let body: { id?: string; previewOnly?: boolean };
+  let body: { id?: string; previewOnly?: boolean; customText?: string };
   try {
     body = await req.json();
   } catch {
@@ -102,6 +123,11 @@ export async function POST(req: Request) {
   }
   const id = (body.id ?? '').trim();
   const previewOnly = body.previewOnly === true;
+  // customText: 管理画面で編集された本文。空文字や省略時はデフォルトテンプレ。
+  // 上限 5,000 文字（暴走防止）。
+  const customText = typeof body.customText === 'string' && body.customText.trim().length > 0
+    ? body.customText.slice(0, 5000)
+    : null;
   if (!id) {
     return Response.json({ ok: false, error: 'id_required' }, { status: 400 });
   }
@@ -150,6 +176,7 @@ export async function POST(req: Request) {
     id,
     accessToken: r.access_token,
     siteUrl,
+    customText,
   });
 
   // ── プレビュー専用: 送信せずに本文だけ返す ──
