@@ -19,12 +19,12 @@ REQUIRED_KEYS=(
   "NEXT_PUBLIC_SUPABASE_URL"
   "SUPABASE_SERVICE_ROLE_KEY"
   "ANTHROPIC_API_KEY"
-  "GMAIL_USER"
-  "GMAIL_APP_PASSWORD"
   "CRON_SECRET"
   "ADMIN_PASSWORD"
   "ANTHROPIC_BUDGET_USD"
 )
+# 注: GMAIL_USER / GMAIL_APP_PASSWORD は本番未登録運用のため必須リストから除外
+# 復活させる場合は set-env.sh で Vercel に登録後ここに戻すこと
 
 for key in "${REQUIRED_KEYS[@]}"; do
   val=$(grep "^${key}=" "$TMPFILE" | sed 's/^[^=]*=//' | tr -d '"' || echo "")
