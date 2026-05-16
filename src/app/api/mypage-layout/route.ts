@@ -28,7 +28,9 @@ export async function GET() {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=300, stale-while-revalidate=1800',
+      // 短めキャッシュ：admin で保存→ユーザーがリロードしたら30秒以内に反映、
+      // stale-while-revalidate でその後も負荷を抑制。
+      'Cache-Control': 'public, max-age=30, stale-while-revalidate=300',
     },
   });
 }

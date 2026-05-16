@@ -64,9 +64,9 @@ const draft = { ...original, footer: { note: probe } };
   ok('PATCH applied (footer.note round-trip)');
 }
 
-// 4. 公開GETでも反映確認
+// 4. 公開GETでも反映確認（CDNキャッシュ回避のため cache-bust 付き）
 {
-  const r = await fetch(`${BASE}/api/mypage-layout`);
+  const r = await fetch(`${BASE}/api/mypage-layout?_cb=${Date.now()}`, { cache: 'no-store' });
   if (r.status !== 200) fail(`public GET status: ${r.status}`);
   const d = await r.json();
   if (d.layout.footer.note !== probe) fail(`public GET footer mismatch: ${d.layout.footer.note}`);
