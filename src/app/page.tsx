@@ -194,7 +194,7 @@ function Hero({ onStart }: { onStart: () => void }) {
             className="mt-9 text-sm sm:text-base font-bold text-[#e3c47a] tracking-wide"
             style={{ textShadow: SUB_SHADOW }}
           >
-            時間をかけて真剣で取り組むほど、分身は賢くなります。
+            時間をかけて真剣に取り組むほど、分身は賢くなります。
           </p>
 
           <div className="mt-5">
