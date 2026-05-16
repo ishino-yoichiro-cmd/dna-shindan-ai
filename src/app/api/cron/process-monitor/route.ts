@@ -20,6 +20,7 @@ export const runtime = 'nodejs';
 
 import { getSupabaseServiceRoleClient } from '@/lib/supabase/server';
 import { sendMail } from '@/lib/email/gmail';
+import { autoAlertsDisabled } from '@/lib/email/auto-alert-killswitch';
 
 function nowJst(): string {
   const now = new Date();
@@ -117,6 +118,10 @@ export async function GET(req: Request) {
   </div>
 </body></html>`;
 
+    if (autoAlertsDisabled()) {
+      console.log('[process-monitor] DISABLE_AUTO_ALERTS=1 — skipped:', subject);
+      return Response.json({ ok: true, alerted: false, killed: true, msSinceHeartbeat, checkedAt: nowJst() });
+    }
     await sendMail({ to: 'yoisno@gmail.com', subject, text, html });
 
     // アラート送信記録

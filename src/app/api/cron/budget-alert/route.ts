@@ -17,6 +17,7 @@ export const runtime = 'nodejs';
 
 import { getSupabaseServiceRoleClient } from '@/lib/supabase/server';
 import { sendMail } from '@/lib/email/gmail';
+import { autoAlertsDisabled } from '@/lib/email/auto-alert-killswitch';
 
 const THRESHOLDS = [
   { pct: 0.9, level: '90', label: '90%超え — 残り僅か' },
@@ -122,6 +123,11 @@ export async function GET(req: Request) {
   </div>
 </body></html>`;
 
+      if (autoAlertsDisabled()) {
+        console.log('[budget-alert] DISABLE_AUTO_ALERTS=1 — skipped:', subject);
+        results.push({ level: threshold.level, sent: false, alreadySent: false });
+        continue;
+      }
       const mailResult = await sendMail({ to: 'yoisno@gmail.com', subject, text, html });
 
       if (mailResult.ok) {

@@ -19,6 +19,7 @@ export const runtime = 'nodejs';
 
 import { getSupabaseServiceRoleClient } from '@/lib/supabase/server';
 import { sendMail } from '@/lib/email/gmail';
+import { autoAlertsDisabled } from '@/lib/email/auto-alert-killswitch';
 
 function nowJst(): string {
   const now = new Date();
@@ -120,6 +121,10 @@ export async function GET(req: Request) {
   </div>
 </body></html>`;
 
+    if (autoAlertsDisabled()) {
+      console.log('[data-integrity] DISABLE_AUTO_ALERTS=1 — skipped:', subject);
+      return Response.json({ ok: true, issues: issues.length, alerted: false, killed: true, alerts: issues.map(i => i.split('\n')[0]), checkedAt: nowJst() });
+    }
     await sendMail({ to: 'yoisno@gmail.com', subject, text: body, html });
 
     console.warn(`[data-integrity] ${issues.length}件の異常検知、メール送信済み`);

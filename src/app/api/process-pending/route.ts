@@ -450,6 +450,11 @@ ${(ctx.narrative.styleSample ?? '').slice(0, 400)}
 // 同じエラーが連続しても気づけなかった2026-05-13障害の教訓から追加
 // ============================================================================
 async function alertYo(message: string): Promise<void> {
+  const { autoAlertsDisabled } = await import('@/lib/email/auto-alert-killswitch');
+  if (autoAlertsDisabled()) {
+    console.log('[alertYo] DISABLE_AUTO_ALERTS=1 — skipped:', message.slice(0, 120));
+    return;
+  }
   const { sendMail } = await import('@/lib/email/gmail');
   await sendMail({
     to: 'yoisno@gmail.com',
