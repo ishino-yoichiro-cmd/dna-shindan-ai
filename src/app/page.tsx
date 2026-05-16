@@ -155,7 +155,7 @@ function Hero({ onStart }: { onStart: () => void }) {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c9a44b] opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-[#c9a44b]" />
             </span>
-            <span>33問 / 約25分 / 50ページレポート</span>
+            <span>33問 / 約25分</span>
           </div>
 
           <h1 className="font-bold tracking-tight leading-[1.08]">
