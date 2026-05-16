@@ -1,7 +1,7 @@
 // マイページ全員共通レイアウト設定
 // dna_system_config.key = 'mypage_layout' の value(text) に JSON.stringify(MyPageLayout) を保存
 
-export const MYPAGE_SECTION_KEYS = ['report', 'clone', 'share', 'referral', 'feedback', 'match'] as const;
+export const MYPAGE_SECTION_KEYS = ['report', 'clone', 'share', 'referral', 'feedback', 'match', 'edit-narrative'] as const;
 export type MyPageSectionKey = typeof MYPAGE_SECTION_KEYS[number];
 
 export interface MyPageSection {
@@ -42,9 +42,10 @@ export const DEFAULT_MYPAGE_LAYOUT: MyPageLayout = {
     { key: 'referral', visible: true, title: 'ご友人にもDNA診断を紹介してあげてください' },
     { key: 'feedback', visible: true, title: '診断レポート・分身AI・分身AIボットについての感想をお聞かせください' },
     { key: 'match',    visible: true, title: '相性診断履歴' },
+    { key: 'edit-narrative', visible: true, title: '回答を編集・追記する' },
   ],
   footer: {
-    note: '※無償ベータ版につき動作の保証はありません。分身ボットの公開は自己責任でお願いします。',
+    note: '本レポートや分身AIボットのご利用については自己責任でお願いいたします。',
   },
 };
 

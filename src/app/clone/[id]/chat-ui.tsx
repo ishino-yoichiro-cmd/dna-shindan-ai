@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { stripMarkdownToPlain } from '@/lib/text/strip-markdown';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -110,6 +111,8 @@ export function ChatUI({ diagnosisId, cloneNickname }: ChatUIProps) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottomRef = useRef(true);
   const abortRef = useRef<AbortController | null>(null);
 
   const storageKey = useMemo(
@@ -150,10 +153,28 @@ export function ChatUI({ diagnosisId, cloneNickname }: ChatUIProps) {
     }
   }, [messages, storageKey]);
 
-  // ---- スクロール追従 ----
+  // ---- スクロール追従（下に張り付いている時のみ・streaming中はinstant・ユーザー操作優先）----
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (!stickToBottomRef.current) return;
+    // streaming 中の逐次更新では smooth が重い → instant
+    messagesEndRef.current?.scrollIntoView({
+      behavior: isStreaming ? 'auto' : 'smooth',
+      block: 'end',
+    });
   }, [messages, isStreaming]);
+
+  // ---- ユーザーが上にスクロールしたら自動追従を停止 ----
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const distFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      stickToBottomRef.current = distFromBottom < 80;
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, []);
 
   // ---- 送信 ----
   const sendMessage = useCallback(
@@ -304,7 +325,7 @@ export function ChatUI({ diagnosisId, cloneNickname }: ChatUIProps) {
   return (
     <div className="flex flex-col h-full w-full">
       {/* メッセージ表示エリア（外側full-width・内側max-w-3xl中央寄せ） */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-4">
         {messages.length === 0 ? (
           <Welcome
@@ -512,7 +533,7 @@ function Bubble({
             : 'bg-navy-soft/60 border border-gold/20 text-offwhite rounded-bl-sm',
         ].join(' ')}
       >
-        {content}
+        {isUser ? content : stripMarkdownToPlain(content)}
         {isStreaming && (
           <span className="inline-block w-2 h-4 ml-1 bg-gold/60 animate-pulse align-middle" />
         )}

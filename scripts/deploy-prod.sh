@@ -121,6 +121,16 @@ else
 fi
 
 echo ""
+
+# ── PHASE 3: alias 一致検証（検出のみ・自動修復なし・メール送信なし） ────────
+# 既存パイプラインに副作用ゼロ。exit code 0 固定。
+ALIAS_CHECK="/Users/yo/secretary/claude-team/_shared/scripts/post-deploy-alias-check.sh"
+if [ -f "$ALIAS_CHECK" ]; then
+  echo "PHASE 3: vanity alias 一致検証（読むだけ）"
+  bash "$ALIAS_CHECK" "$PROJECT_DIR" || true
+fi
+
+echo ""
 echo "================================================================"
 echo "  ⚠️  デプロイ完了後、以下のコマンドでPDF DLを必ず手動確認してください:"
 echo "  bash scripts/verify-pdf-download.sh https://dna.kami-ai.jp"

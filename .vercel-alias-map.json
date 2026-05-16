@@ -1,0 +1,4 @@
+{
+  "production_url": "dna-shindan-ai.vercel.app",
+  "_comment": "post-deploy-alias-check.sh が読む。 deploy 後に vanity alias が新デプロイを向いているかの照合に使う。修復は行わない・メール送信もしない（検出のみ）。"
+}

@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { DEFAULT_MYPAGE_LAYOUT, type MyPageLayout } from '@/lib/mypage-layout';
+import EditNarrativeCard from '@/components/me/EditNarrativeCard';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -338,6 +339,14 @@ export default function MyPage({ params }: Props) {
         {reportReady ? (
           <>
             <div className="text-sm leading-relaxed mb-4 space-y-3">
+              <div className="border border-gold/30 rounded-lg p-3 bg-navy-deep/40">
+                <p className="font-bold text-gold text-sm mb-1.5">ChatGPT との違い</p>
+                <p className="text-offwhite-dim/90 text-xs leading-relaxed">
+                  汎用 AI は誰の壁打ち相手にもなれるが、あなた自身のことは知らない。
+                  この分身 AI は、あなたが書いた自由記述8問・命術16・心理スコア・文体サンプルを内面化し、
+                  「あなたの言葉・価値観・落とし穴」を起点に応答する。同じ質問でも、返ってくる答えが違う。
+                </p>
+              </div>
               <p className="font-bold text-offwhite text-base">分身ボットの使い方</p>
               <div>
                 <p className="font-bold text-gold">１ ご自身をさらに深掘りする</p>
@@ -352,6 +361,7 @@ export default function MyPage({ params }: Props) {
                 <p className="text-offwhite-dim/90 text-xs mt-0.5 pl-1">今まで以上に自分の深層を理解してもらうことで、より濃い付き合いができます。</p>
               </div>
             </div>
+
             <a
               href={authed?.cloneUrl ?? `/clone/${id}`}
               target="_blank"
@@ -531,6 +541,16 @@ export default function MyPage({ params }: Props) {
         </div>
       </Card>
     ) : null,
+    'edit-narrative': (
+      <Card>
+        <h2 className="text-lg font-bold text-gold mb-3">{titleOf('edit-narrative', '回答を編集・追記する')}</h2>
+        <EditNarrativeCard
+          id={id}
+          credentials={{ token: authToken || undefined, password: savedPw || undefined }}
+          status={authed?.status}
+        />
+      </Card>
+    ),
   };
 
   return (

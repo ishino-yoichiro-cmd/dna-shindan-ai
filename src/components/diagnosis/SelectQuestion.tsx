@@ -53,6 +53,10 @@ export function SelectQuestion({ question, step }: Props) {
           })}
         </div>
 
+        <p className="mt-4 text-xs text-offwhite-dim/70 leading-relaxed">
+          ※ ぴったり当てはまる選択肢がない場合は、<span className="text-offwhite-dim">「最も近い」「直感的にこれかな」</span>と感じるものを選んでください。完全一致でなくて構いません。傾向の集合から立体像を組み上げる設計です。
+        </p>
+
         <div className="flex justify-between items-center mt-8">
           <GhostButton onClick={() => dispatch({ type: 'GO_BACK' })}>戻る</GhostButton>
           <div className="flex flex-col items-end gap-1">

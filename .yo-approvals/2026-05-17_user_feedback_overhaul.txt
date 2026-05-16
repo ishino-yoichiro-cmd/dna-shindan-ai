@@ -1,0 +1,31 @@
+承認日時: 2026-05-17 05:41 JST
+承認者: YO（intent_log/2026-05-17.md session=3044c3ea 原文ベース）
+承認範囲: 顧客の声を元にしたレポート14項目改善 — 「基本的に全部採用して、修正してほしい」
+
+【YO原文（intent_log/2026-05-17.md より抜粋）】
+顧客の声を元にしたレポートの改善点です。
+基本的に全部採用して、修正してほしい。
+（14項目省略・intent_log参照）
+
+承認対象の生成系コード変更（CLAUDE.md ルール#13 準拠）:
+- app/api/generate-report/
+- app/api/process-pending/
+- app/api/clone/[id]/chat/
+- app/api/me/[id]/narrative/         (要望9 半実装 — 別作業で追加されたものを一括承認)
+- app/api/me/[id]/update-narrative/   (要望9 半実装 — 別作業で追加されたものを一括承認)
+- lib/llm/prompts/
+- lib/llm/generator.ts
+- lib/clone/system-prompt-builder.ts
+- lib/pdf/ （PDF章レイアウト）
+- 命術ロジック（lib/celestial/ もしくは該当ディレクトリ）
+- 質問定義（lib/store/types.ts / questions ロード元）
+- mypage-layout.ts（edit-narrative セクション追加・別作業）
+- app/me/[id]/page.tsx（edit-narrative UI追加・別作業）
+
+非変更（YO 指示 2026-05-17 明示）:
+- DB上のYO本人レコード匿名化はスキップ（レポート支障の理由）
+
+実装方針:
+- 既存稼働への影響最小化（Phase分け・各Phaseでビルド検証）
+- ユーザーへの自動メール送信なし
+- 大規模変更前に grep 全件把握 → 一括修正

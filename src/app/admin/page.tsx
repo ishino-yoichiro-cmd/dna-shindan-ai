@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { stripMarkdownToPlain } from '@/lib/text/strip-markdown';
 
 const STORAGE_KEY_ADMIN_PASS = 'dna-shindan-ai:admin-pass';
 
@@ -1092,7 +1093,7 @@ export default function AdminPage() {
                           {Object.entries(sel.report_text).map(([k, v]) => (
                             <div key={k}>
                               <p className="text-gold font-bold mb-1">{k}（{v?.length ?? 0} 字）</p>
-                              <p className="text-offwhite-dim whitespace-pre-wrap bg-navy-deep/60 p-2 rounded leading-relaxed">{v}</p>
+                              <p className="text-offwhite-dim whitespace-pre-wrap bg-navy-deep/60 p-2 rounded leading-relaxed">{stripMarkdownToPlain(v)}</p>
                             </div>
                           ))}
                         </div>
