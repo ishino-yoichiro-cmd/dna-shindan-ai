@@ -24,6 +24,9 @@
 # DB接続・APIキー存在確認のみ。実際のAPIを呼ばないためコスト発生なし
 /health
 
+# マイページレイアウト取得（全ユーザー共通の表示構造を返す公開API・DB書き込みなし・5分キャッシュ）
+/mypage-layout
+
 # /pdf は 2026-05-07 に410封鎖済み
 # process-pending が renderToBuffer() を直接呼び出す形に移行済みのためデッドコード
 # ホワイトリスト登録不要（verify-auth-coverage.sh が SEALED として検出）
