@@ -1,0 +1,33 @@
+承認日時: 2026-05-17（要望9 着手時点）
+承認者: YO（intent_log/2026-05-17.md session=70278f4d 経由・スコープ明示）
+承認範囲: 顧客の声 要望#9「情報更新できない」— me ページから自由記述8問（Q31〜Q38）の編集・追記＋任意の再生成
+
+【YO原文】
+■ 要望9: 情報更新できない（新規機能・規模大）
+対象：me ページから入力修正・追加学習
+作業：
+  1. DB スキーマ確認（dna_diagnoses の narrative_answers / scores / celestial_results が変更可能か）
+  2. me/[id]/page.tsx に編集UI追加（自由記述8問の再入力フォーム）
+  3. api/me/[id]/update-narrative API 新規作成
+  4. 章再生成トリガ（process-pending を流すか、新規 regenerate API）
+  5. 承認スタンプ必要（生成系コードへの変更）
+規模感: 5-10時間
+
+承認対象の生成系コード変更（CLAUDE.md ルール#13 準拠）:
+- app/api/me/[id]/update-narrative/route.ts（新規・POST：narrative_answers 編集・任意の再生成キュー投入）
+- app/api/me/[id]/narrative/route.ts（新規・GET：編集UI プリフィル用）
+- src/components/me/EditNarrativeCard.tsx（新規・編集UI コンポーネント）
+- src/app/me/[id]/page.tsx（編集セクション追加）
+- src/lib/mypage-layout.ts（'edit-narrative' セクションキー追加）
+
+非変更（YO 制約・前セッション踏襲）:
+- DB マイグレーション無し（既存 narrative_answers JSONB を流用）
+- 自動メール送信無し（再生成完了後の通知メールは管理者が必要に応じて再送）
+- 既存稼働への影響無し（既存 regenerate API・process-pending・scoring・celestial には触れていない）
+
+実装方針:
+- ナラティブ回答はマージ更新（送信された Q キーのみ上書き、未送信キーは保持）
+- 再生成要求は既存 regenerate API と同じ初期化（status='received', report_text=null,
+  pdf_storage_path=null, email_report_sent_at=null, completed_at=null, error_log=null）
+- status='in_progress' 中の再生成要求は 409 で拒否（process-pending とのレース対策）
+- scores / celestial_results は触らない（narrative_answers は scoring 入力に未使用、誕生日変更時のみ recompute API で再計算）
