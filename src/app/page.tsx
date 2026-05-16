@@ -1,8 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DiagnosisProvider } from '@/lib/store/DiagnosisProvider';
 import { DiagnosisFlow } from '@/components/diagnosis/DiagnosisFlow';
+
+const TEXT_SHADOW =
+  '0 2px 6px rgba(0,0,0,0.95), 0 4px 14px rgba(0,0,0,0.9), 0 8px 40px rgba(0,0,0,0.85), 0 0 60px rgba(0,0,0,0.6)';
+
+const SUB_SHADOW =
+  '0 1px 4px rgba(0,0,0,0.95), 0 2px 10px rgba(0,0,0,0.9), 0 4px 20px rgba(0,0,0,0.7)';
 
 export default function Home() {
   const [started, setStarted] = useState(false);
@@ -15,123 +21,195 @@ export default function Home() {
     );
   }
 
+  return <Hero onStart={() => setStarted(true)} />;
+}
+
+function Hero({ onStart }: { onStart: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let width = 0;
+    let height = 0;
+
+    const resize = () => {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      width = canvas.clientWidth;
+      height = canvas.clientHeight;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const particles = Array.from({ length: 60 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      r: Math.random() * 1.6 + 0.3,
+      vx: (Math.random() - 0.5) * 0.0004,
+      vy: (Math.random() - 0.5) * 0.0004,
+      a: Math.random() * 0.6 + 0.2,
+    }));
+
+    let raf = 0;
+    const start = performance.now();
+
+    const draw = () => {
+      const t = (performance.now() - start) / 1000;
+
+      const g = ctx.createRadialGradient(
+        width / 2, height / 2, 0,
+        width / 2, height / 2, Math.max(width, height) * 0.7,
+      );
+      g.addColorStop(0, '#0a1f44');
+      g.addColorStop(0.55, '#050f24');
+      g.addColorStop(1, '#02060f');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.save();
+      ctx.translate(width / 2, height / 2);
+      const helixHeight = Math.min(height * 0.85, 720);
+      const radius = Math.min(width * 0.18, 160);
+      const turns = 3.4;
+      const points = 110;
+
+      for (let i = 0; i < points; i++) {
+        const u = i / (points - 1);
+        const y = (u - 0.5) * helixHeight;
+        const angle = u * Math.PI * 2 * turns + t * 0.12;
+        const x1 = Math.cos(angle) * radius;
+        const x2 = Math.cos(angle + Math.PI) * radius;
+        const depth1 = (Math.sin(angle) + 1) / 2;
+        const depth2 = (Math.sin(angle + Math.PI) + 1) / 2;
+
+        if (i % 4 === 0) {
+          ctx.strokeStyle = `rgba(201, 164, 75, ${0.08 + depth1 * 0.18})`;
+          ctx.lineWidth = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(x1, y);
+          ctx.lineTo(x2, y);
+          ctx.stroke();
+        }
+
+        ctx.fillStyle = `rgba(227, 196, 122, ${0.35 + depth1 * 0.55})`;
+        ctx.beginPath();
+        ctx.arc(x1, y, 1.6 + depth1 * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(245, 241, 230, ${0.18 + depth2 * 0.42})`;
+        ctx.beginPath();
+        ctx.arc(x2, y, 1.2 + depth2 * 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0 || p.x > 1) p.vx *= -1;
+        if (p.y < 0 || p.y > 1) p.vy *= -1;
+        const flicker = 0.6 + Math.sin(t * 0.9 + p.x * 30) * 0.4;
+        ctx.fillStyle = `rgba(201, 164, 75, ${p.a * flicker * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(p.x * width, p.y * height, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const vignette = ctx.createRadialGradient(
+        width / 2, height / 2, Math.min(width, height) * 0.3,
+        width / 2, height / 2, Math.max(width, height) * 0.75,
+      );
+      vignette.addColorStop(0, 'rgba(0,0,0,0)');
+      vignette.addColorStop(1, 'rgba(0,0,0,0.7)');
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, width, height);
+
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 py-16 bg-gradient-to-b from-navy-deep via-navy to-navy-deep">
-      <div className="max-w-3xl w-full space-y-12">
-        <header className="text-center space-y-5">
-          <Logo />
-          <h1 className="text-3xl sm:text-5xl font-bold leading-tight">
-            あなたの<span className="text-gold">分身AI</span>を作る、
-            <br className="hidden sm:block" />
-            ための25分。
-          </h1>
-          <p className="text-offwhite-dim text-base sm:text-lg leading-relaxed pt-3">
-            命術16診断＋心理診断18問＋自由記述8問を統合。<br />
-            この結果をAIに渡せば、AIは面白いほどあなたを理解し、すべての話が通じる相棒になる。
-          </p>
-        </header>
+    <main className="relative h-screen w-screen overflow-hidden bg-[#02060f]">
+      <canvas ref={canvasRef} className="absolute inset-0 size-full" />
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/70 pointer-events-none" />
 
-        <div className="bg-gold/10 border border-gold/40 rounded-2xl p-5 sm:p-6 text-left">
-          <p className="text-gold text-sm sm:text-base font-bold mb-2">本気で取り組むほど、AIは賢くなる</p>
-          <p className="text-sm sm:text-base text-offwhite leading-relaxed">
-            真剣に実施すると <strong className="text-gold">1時間ほど</strong>かかります（早ければ20分）。
-            <br />
-            <strong className="text-gold">より多くの情報量をAIに渡すほど、AIはより正しく詳しく、あなたのことを理解してくれる</strong>ようになります。
-            時間を確保して、本気で取り組むことをお勧めします。
-          </p>
-        </div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[60%] bg-gradient-to-b from-transparent via-black/45 to-transparent pointer-events-none" />
 
-        <div className="bg-navy-soft/40 backdrop-blur rounded-2xl border border-gold/30 p-8 sm:p-10 space-y-6 shadow-2xl">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <Stat label="所要時間" value="約25分" />
-            <Stat label="設問数" value="全33問" />
-            <Stat label="レポート" value="50ページ以上" />
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#c9a44b]/30 bg-black/40 px-4 py-1.5 text-sm font-medium text-[#e3c47a]/95 backdrop-blur-md">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c9a44b] opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#c9a44b]" />
+            </span>
+            <span>33問 / 約25分 / 50ページレポート</span>
           </div>
 
-          <div className="text-center pt-2">
+          <h1 className="font-bold tracking-tight leading-[1.08]">
+            <span className="block whitespace-nowrap text-4xl sm:text-5xl lg:text-6xl 2xl:text-7xl">
+              <span className="text-white" style={{ textShadow: TEXT_SHADOW }}>あなたの</span>
+              <span
+                className="bg-gradient-to-r from-[#e3c47a] via-[#f5e5b8] to-[#c9a44b] bg-clip-text text-transparent"
+                style={{
+                  textShadow: 'none',
+                  filter:
+                    'drop-shadow(0 2px 4px rgba(0,0,0,0.9)) drop-shadow(0 4px 14px rgba(0,0,0,0.8)) drop-shadow(0 8px 30px rgba(0,0,0,0.65))',
+                }}
+              >
+                分身AI
+              </span>
+              <span className="text-white" style={{ textShadow: TEXT_SHADOW }}>を作る、</span>
+            </span>
+            <span
+              className="block text-4xl sm:text-5xl lg:text-6xl 2xl:text-7xl text-white"
+              style={{ textShadow: TEXT_SHADOW }}
+            >
+              ための25分。
+            </span>
+          </h1>
+
+          <p
+            className="mt-7 text-base sm:text-lg text-white/90 max-w-2xl leading-relaxed"
+            style={{ textShadow: SUB_SHADOW }}
+          >
+            命術16診断＋心理診断18問＋自由記述8問を統合。
+            <br className="hidden sm:block" />
+            50ページ超えの診断レポート＋あなた専用の分身AIボットを自動生成。
+          </p>
+
+          <div className="mt-9">
             <button
               type="button"
-              onClick={() => setStarted(true)}
-              className="inline-block bg-gold text-navy-deep font-bold text-lg sm:text-xl px-12 py-4 rounded-full hover:bg-gold-light transition pulse-gold"
+              onClick={onStart}
+              className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-8 py-4 text-base font-bold text-white backdrop-blur-md transition hover:bg-white/20 hover:border-white/45 cursor-pointer"
+              style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
             >
               診断をはじめる
+              <span aria-hidden>→</span>
             </button>
-            <p className="text-xs text-offwhite-dim mt-4">
-              途中保存対応 / 24時間以内ならどの端末でも続きから
-            </p>
           </div>
+
+          <p
+            className="mt-6 text-sm sm:text-base font-bold text-[#e3c47a] tracking-wide"
+            style={{ textShadow: SUB_SHADOW }}
+          >
+            時間をかけて本気で取り組むほど、分身は賢くなります。
+          </p>
         </div>
-
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Feature
-            num="01"
-            title="命術16診断"
-            text="生年月日・時刻・出生地から四柱推命・紫微斗数・西洋占星まで質問ゼロで自動算出"
-          />
-          <Feature
-            num="02"
-            title="多軸18問"
-            text="Big5・エニア・RIASEC・愛情表現・起業家タイプを1問で同時抽出"
-          />
-          <Feature
-            num="03"
-            title="分身AIボット"
-            text="診断後、あなたを学習した個別AIボットURLが届く。家族にも見せたくなる精度"
-          />
-        </section>
-
-        <footer className="text-center text-xs text-offwhite-dim/70 space-y-1 pt-4">
-          <p>© 2026 DNA Shindan AI</p>
-        </footer>
       </div>
     </main>
-  );
-}
-
-function Logo() {
-  return (
-    <div className="inline-flex items-center justify-center">
-      <svg
-        viewBox="0 0 200 80"
-        width="240"
-        height="96"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-label="DNA SHINDAN AI"
-        className="block"
-      >
-        <g stroke="#c9a44b" strokeWidth="2" fill="none" strokeLinecap="round">
-          <path d="M 18 12 Q 30 30 18 48 Q 6 66 18 80" opacity="0.95" />
-          <path d="M 42 12 Q 30 30 42 48 Q 54 66 42 80" opacity="0.95" />
-          <line x1="20" y1="20" x2="40" y2="20" opacity="0.55" />
-          <line x1="14" y1="32" x2="46" y2="32" opacity="0.7" />
-          <line x1="14" y1="46" x2="46" y2="46" opacity="0.7" />
-          <line x1="20" y1="60" x2="40" y2="60" opacity="0.55" />
-          <line x1="14" y1="72" x2="46" y2="72" opacity="0.7" />
-        </g>
-        <g fill="#fbfaf6" fontFamily="ui-sans-serif, system-ui, sans-serif">
-          <text x="68" y="38" fontSize="22" fontWeight="800" letterSpacing="2">DNA</text>
-          <text x="68" y="62" fontSize="13" fontWeight="600" letterSpacing="3" fill="#c9a44b">SHINDAN AI</text>
-        </g>
-      </svg>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs text-offwhite-dim">{label}</p>
-      <p className="text-xl sm:text-2xl font-bold text-gold">{value}</p>
-    </div>
-  );
-}
-
-function Feature({ num, title, text }: { num: string; title: string; text: string }) {
-  return (
-    <div className="rounded-xl border border-gold/20 p-5 bg-navy-soft/20">
-      <p className="text-gold text-xs tracking-wider mb-2">{num}</p>
-      <h3 className="font-bold text-base mb-2">{title}</h3>
-      <p className="text-sm text-offwhite-dim leading-relaxed">{text}</p>
-    </div>
   );
 }

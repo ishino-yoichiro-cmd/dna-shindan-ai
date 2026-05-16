@@ -23,3 +23,8 @@ tsconfig.tsbuildinfo
 # 一時envファイル（本番credあり・git禁止）
 .env.prod
 .env.regen
+
+# ヒーロー試作ページ（本番には出さない・dev環境のみ）
+src/app/test-hero/
+src/app/test-hero-*/
+src/app/_test-hero-shared/
