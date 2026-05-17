@@ -143,6 +143,37 @@ function preprocessMarkdown(md: string): string {
   // parseMarkdown は > を行頭でしか認識しないため、ここで分離してから渡す
   md2 = md2.replace(/([。！？」）])\s*>\s+/g, '$1\n\n> ');
 
+  // === 前処理0.4: 空行で区切られた連続 Quote ブロックを統合 ===
+  // LLM が「> A\n\n> B\n\n> C」のように空行で区切って引用を並べると
+  // parseMarkdown 側で別々の Quote コンポーネント（"INSIGHT" ラベル付き）として描画され、
+  // 同じ章内に "INSIGHT" が何度も繰り返される不自然な見た目になる。
+  // 連続している場合は空行を除去して1つの Quote にまとめる（複数行引用として描画）。
+  {
+    const lines04 = md2.split('\n');
+    const merged: string[] = [];
+    for (let i = 0; i < lines04.length; i++) {
+      const cur = lines04[i];
+      if (cur.trim() === '') {
+        // 直前が > 行で、空行をスキップした先がまた > 行なら、空行を捨てて統合
+        const prevLine = merged[merged.length - 1];
+        let next = i + 1;
+        while (next < lines04.length && lines04[next].trim() === '') next++;
+        if (
+          prevLine !== undefined &&
+          prevLine.trim().startsWith('>') &&
+          next < lines04.length &&
+          lines04[next].trim().startsWith('>')
+        ) {
+          // 統合：空行を全部スキップ
+          i = next - 1;
+          continue;
+        }
+      }
+      merged.push(cur);
+    }
+    md2 = merged.join('\n');
+  }
+
   // === 前処理0.5: 長い段落行を文単位で2文ずつ段落化 ===
   // LLMが改行なしで複数文を1行に出力するケース（全文字が1〜数行の場合）の対策
   // 句点（。！？）を文末として検出し、2文ずつ段落化する
@@ -190,8 +221,17 @@ function preprocessMarkdown(md: string): string {
     // 空の引用行（"> " だけ、または ">" だけ）を除去
     if (/^>\s*$/.test(line.trim())) continue;
 
+    // 孤立した「-」だけの行を除去（表直後等に LLM が改行ハイフンを残すケース）
+    // 「---」「***」「___」の水平線は別行に到達する前にスキップする必要があるため
+    // ハイフンが2個以上連続している場合は除外（水平線パスへ）
+    if (/^-$/.test(line.trim())) continue;
+
     // 行末の「-」を除去（文章途中の改行ハイフン）
-    line = line.replace(/-\s*$/, '');
+    // ただし水平線（---/***/___）は保護する（末尾 - を削ると -- に変質して
+    // parseMarkdown の水平線判定をすり抜け、本文に "-" が浮く）。
+    if (!/^[-*_]{3,}\s*$/.test(line.trim())) {
+      line = line.replace(/-\s*$/, '');
+    }
 
     // ジャーゴン置換（PDFレンダリング時の最終安全網）
     line = line
@@ -505,6 +545,10 @@ function stripPairedBold(s: string): string {
 function H2({ text }: { text: string }) {
   return (
     <View
+      // 見出し直下に最低 80pt（≈ 4-5 行分）の本文余白が無ければ見出しごと次ページへ送る。
+      // フッター直前で見出しだけ残って本文が次ページに行く widow を防止する。
+      minPresenceAhead={80}
+      wrap={false}
       style={{
         flexDirection: 'row',
         alignItems: 'stretch',
@@ -546,6 +590,9 @@ function H2({ text }: { text: string }) {
 function H3({ text }: { text: string }) {
   return (
     <View
+      // 見出し直下に最低 60pt 確保。H2 と同様 widow 防止。
+      minPresenceAhead={60}
+      wrap={false}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -872,33 +919,44 @@ function Divider() {
 }
 
 // 表（最初の行をヘッダー扱い）
+// 大型表（行数 >= LARGE_TABLE_THRESHOLD）は外側 View に break={true} を付けて
+// 表全体が新ページ先頭から始まるようにする。これにより 12ヶ月マップ等の長い表が
+// 「途中改ページ→孤児セル群」になる事故を防止する。
+const LARGE_TABLE_THRESHOLD = 8;
+
 function Table({ rows }: { rows: string[][] }) {
   if (rows.length === 0) return null;
   const [header, ...body] = rows;
   const cols = header.length;
   const colWidth = `${100 / cols}%`;
+  const isLarge = rows.length >= LARGE_TABLE_THRESHOLD;
   return (
     <View
+      // wrap は許可（行単位の改ページが必要なケースに備える）
+      // 大型表は break={true} で強制的に新ページ先頭へ送る
+      break={isLarge}
       style={{
         marginTop: 10,
         marginBottom: 14,
         borderWidth: 0.5,
         borderColor: colors.divider,
         borderRadius: 4,
-        // overflow:'hidden' は react-pdf のページ境界で先頭・末尾行のボーダーを欠落させるため除去
       }}
-      wrap={false}
     >
-      <View style={{ flexDirection: 'row', backgroundColor: colors.primary }} wrap={false}>
+      {/* ヘッダー行：単独で分割禁止 */}
+      <View
+        style={{ flexDirection: 'row', backgroundColor: colors.primary }}
+        wrap={false}
+      >
         {header.map((h, i) => (
           <Text
             key={i}
             style={{
               width: colWidth as `${number}%`,
-              fontSize: 9.5,
+              fontSize: isLarge ? 8.5 : 9.5,
               fontWeight: 700,
               color: colors.textInverse,
-              padding: 7,
+              padding: isLarge ? 5 : 7,
               borderRightWidth: 0.5,
               borderRightColor: colors.primaryLight,
               letterSpacing: 0.3,
@@ -911,6 +969,8 @@ function Table({ rows }: { rows: string[][] }) {
       {body.map((row, ri) => (
         <View
           key={ri}
+          // 各行は途中で分割しない。1行のセル群が同一ページ内に収まる
+          wrap={false}
           style={{
             flexDirection: 'row',
             backgroundColor: ri % 2 === 0 ? colors.background : colors.backgroundCard,
@@ -923,12 +983,13 @@ function Table({ rows }: { rows: string[][] }) {
               key={ci}
               style={{
                 width: colWidth as `${number}%`,
-                fontSize: 9.5,
+                // 大型表は1ページに収めるためフォント・行間・パディングを縮小
+                fontSize: isLarge ? 8.5 : 9.5,
                 color: colors.text,
-                padding: 7,
+                padding: isLarge ? 4 : 7,
                 borderRightWidth: 0.5,
                 borderRightColor: colors.divider,
-                lineHeight: 1.55,
+                lineHeight: isLarge ? 1.4 : 1.55,
               }}
             >
               {cell.replace(/\*\*/g, '')}
