@@ -27,9 +27,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // imapflow は Node.js 専用（TLS sockets 利用）。Next.js のサーバー bundler が
-  // 巻き込むと初期化失敗で 'Command failed' を返すため外部化必須。
-  serverExternalPackages: ['imapflow', 'nodemailer'],
+  // nodemailer は Node.js 専用（SMTP socket 利用）。サーバー bundler が
+  // 巻き込むと初期化失敗するため外部化。
+  serverExternalPackages: ['nodemailer'],
   experimental: {
     typedRoutes: true,
   },

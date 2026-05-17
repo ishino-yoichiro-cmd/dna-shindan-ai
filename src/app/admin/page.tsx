@@ -35,7 +35,7 @@ function toJST(iso: string | null | undefined): string {
   return j.toISOString().slice(0, 16).replace('T', ' ');
 }
 
-type TabId = 'data' | 'feedbacks' | 'mail' | 'inbox' | 'pages';
+type TabId = 'data' | 'feedbacks' | 'mail' | 'pages';
 
 interface SubmissionRow {
   id: string;
@@ -124,38 +124,6 @@ interface MailState {
   sending: boolean;
   result: { sent: number; failed: number; total: number } | null;
   error: string;
-}
-
-interface InboxMessage {
-  uid: number;
-  messageId: string;
-  inReplyTo?: string | null;
-  references?: string[];
-  from: string;
-  fromName: string;
-  subject: string;
-  date: string;
-  bodyText: string;
-  bodyHtml?: string;
-  read: boolean;
-}
-
-interface ReplyState {
-  to: string;
-  subject: string;
-  body: string;
-  sending: boolean;
-  sent: boolean;
-  error: string;
-}
-
-interface ThreadEntry {
-  kind: 'sent' | 'received';
-  at: string;
-  subject: string;
-  bodyPreview: string;
-  email: string;
-  meta?: Record<string, unknown>;
 }
 
 // マイページ全員共通レイアウト編集
@@ -258,15 +226,6 @@ export default function AdminPage() {
   const [editedText, setEditedText] = useState<string>('');
   const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>('data');
-  const [inboxMessages, setInboxMessages] = useState<InboxMessage[]>([]);
-  const [inboxLoading, setInboxLoading] = useState(false);
-  const [inboxError, setInboxError] = useState('');
-  const [inboxLoaded, setInboxLoaded] = useState(false);
-  const [selectedInbox, setSelectedInbox] = useState<InboxMessage | null>(null);
-  const [reply, setReply] = useState<ReplyState>({ to: '', subject: '', body: '', sending: false, sent: false, error: '' });
-  const [thread, setThread] = useState<ThreadEntry[]>([]);
-  const [threadLoading, setThreadLoading] = useState(false);
-  const [inboxFilter, setInboxFilter] = useState<'all' | 'unread'>('all');
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [layoutEdit, setLayoutEdit] = useState<LayoutEditState>({
     loading: false, saving: false, error: '', savedAt: null, draft: null, original: null,
@@ -454,107 +413,6 @@ export default function AdminPage() {
     } catch {}
   };
 
-  const loadInbox = async () => {
-    setInboxLoaded(true);
-    setInboxLoading(true);
-    setInboxError('');
-    try {
-      const r = await fetch(`/api/admin/inbox?pass=${encodeURIComponent(pass)}&limit=50`);
-      const d = await r.json();
-      if (d.ok) {
-        setInboxMessages(d.messages ?? []);
-      } else {
-        setInboxError(d.error ?? '受信ボックスの取得に失敗しました');
-      }
-    } catch (e) {
-      setInboxError(String(e));
-    } finally {
-      setInboxLoading(false);
-    }
-  };
-
-  const buildQuotedBody = (msg: InboxMessage) => {
-    const header = `\n\n\n----- Original Message -----\nFrom: ${msg.fromName || msg.from} <${msg.from}>\nDate: ${new Date(msg.date).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}\nSubject: ${msg.subject}\n\n`;
-    const quoted = (msg.bodyText || '').split('\n').map(l => `> ${l}`).join('\n');
-    return `${header}${quoted}`;
-  };
-
-  const loadThread = async (email: string) => {
-    setThread([]);
-    if (!email) return;
-    setThreadLoading(true);
-    try {
-      const r = await fetch(`/api/admin/thread?pass=${encodeURIComponent(pass)}&email=${encodeURIComponent(email)}`);
-      const d = await r.json();
-      if (d.ok) setThread(d.entries ?? []);
-    } catch {
-      /* スレッド取得失敗は無視（メイン機能を妨げない） */
-    } finally {
-      setThreadLoading(false);
-    }
-  };
-
-  const markInboxFlag = async (uids: number[], action: 'markRead' | 'markUnread') => {
-    if (uids.length === 0) return;
-    try {
-      await fetch('/api/admin/inbox', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pass, uids, action }),
-      });
-      // ローカル状態も同期
-      setInboxMessages(list => list.map(m => uids.includes(m.uid) ? { ...m, read: action === 'markRead' } : m));
-    } catch { /* 失敗は無視（次回再読込で同期） */ }
-  };
-
-  const openInboxMessage = (msg: InboxMessage) => {
-    setSelectedInbox(msg);
-    const reSubject = msg.subject.startsWith('Re:') ? msg.subject : `Re: ${msg.subject}`;
-    setReply({
-      to: msg.from,
-      subject: reSubject,
-      body: buildQuotedBody(msg),
-      sending: false,
-      sent: false,
-      error: '',
-    });
-    if (!msg.read) void markInboxFlag([msg.uid], 'markRead');
-    void loadThread(msg.from);
-  };
-
-  const sendReply = async () => {
-    if (!reply.body.trim()) return;
-    setReply(r => ({ ...r, sending: true, error: '' }));
-    try {
-      const refs: string[] = [];
-      if (Array.isArray(selectedInbox?.references)) refs.push(...selectedInbox!.references);
-      if (selectedInbox?.messageId && !refs.includes(selectedInbox.messageId)) {
-        refs.push(selectedInbox.messageId);
-      }
-      const res = await fetch('/api/admin/inbox', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pass,
-          to: reply.to,
-          subject: reply.subject,
-          replyBody: reply.body,
-          inReplyTo: selectedInbox?.messageId,
-          references: refs,
-        }),
-      });
-      const d = await res.json();
-      if (d.ok) {
-        setReply(r => ({ ...r, sent: true, sending: false }));
-        if (selectedInbox?.from) void loadThread(selectedInbox.from);
-      } else {
-        setReply(r => ({ ...r, error: d.error ?? '送信失敗', sending: false }));
-      }
-    } catch (e) {
-      setReply(r => ({ ...r, error: String(e), sending: false }));
-    }
-  };
-
   // ── ページ管理：マイページ全員共通レイアウト編集 ──
   const loadMypageLayout = async () => {
     setLayoutEdit(s => ({ ...s, loading: true, error: '', savedAt: null }));
@@ -621,9 +479,6 @@ export default function AdminPage() {
   // タブ切り替え時の副作用
   const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
-    if (tab === 'inbox' && !inboxLoaded) {
-      void loadInbox();
-    }
     if (tab === 'pages' && !layoutEdit.draft && !layoutEdit.loading) {
       void loadMypageLayout();
     }
@@ -743,12 +598,10 @@ export default function AdminPage() {
     mail.toType === 'all' ? stats.rows.filter(r => r.email).length :
     mail.selectedIds.length;
 
-  const unreadCount = inboxMessages.filter(m => !m.read).length;
   const TABS: { id: TabId; label: string; badge?: number }[] = [
     { id: 'data', label: '診断データ', badge: stats.rows.length },
     { id: 'feedbacks', label: '感想', badge: feedbacks.length },
     { id: 'mail', label: 'メール配信' },
-    { id: 'inbox', label: '受信ボックス', badge: unreadCount > 0 ? unreadCount : undefined },
     { id: 'pages', label: 'ページ管理' },
   ];
 
@@ -1407,191 +1260,6 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* ── TAB: 受信ボックス ── */}
-        {activeTab === 'inbox' && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <h2 className="text-sm font-bold text-gold">受信ボックス（dna@kami-ai.jp）</h2>
-              <div className="flex items-center gap-2">
-                <div className="inline-flex rounded-lg border border-offwhite-dim/20 overflow-hidden text-xs">
-                  <button
-                    onClick={() => setInboxFilter('all')}
-                    className={`px-3 py-1.5 ${inboxFilter === 'all' ? 'bg-gold text-navy-deep font-bold' : 'text-offwhite-dim hover:text-offwhite'}`}
-                  >
-                    全て（{inboxMessages.length}）
-                  </button>
-                  <button
-                    onClick={() => setInboxFilter('unread')}
-                    className={`px-3 py-1.5 border-l border-offwhite-dim/20 ${inboxFilter === 'unread' ? 'bg-gold text-navy-deep font-bold' : 'text-offwhite-dim hover:text-offwhite'}`}
-                  >
-                    未読のみ（{inboxMessages.filter(m => !m.read).length}）
-                  </button>
-                </div>
-                <button
-                  onClick={() => void loadInbox()}
-                  disabled={inboxLoading}
-                  className="border border-gold/40 text-gold px-3 py-1.5 rounded-lg text-sm hover:bg-gold/10 disabled:opacity-50"
-                >
-                  {inboxLoading ? '読み込み中…' : '再読み込み'}
-                </button>
-              </div>
-            </div>
-
-            {/* 空状態 */}
-            {inboxMessages.length === 0 && !inboxLoading && !inboxError && inboxLoaded && (
-              <p className="text-offwhite-dim/50 text-sm text-center py-16">受信メールはありません</p>
-            )}
-            {inboxMessages.length === 0 && !inboxLoading && !inboxError && !inboxLoaded && (
-              <p className="text-offwhite-dim/50 text-sm text-center py-16">読み込み中…</p>
-            )}
-
-            {inboxError && (
-              <div className="bg-red-900/20 border border-red-400/30 rounded-xl p-4 text-sm text-red-300">
-                {inboxError}
-              </div>
-            )}
-
-            {inboxMessages.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                {/* メール一覧 */}
-                <div className="md:col-span-2 space-y-1.5 max-h-[70vh] overflow-y-auto pr-1">
-                  {inboxMessages
-                    .filter(m => inboxFilter === 'all' || !m.read)
-                    .map(msg => (
-                    <div
-                      key={msg.uid}
-                      className={`w-full rounded-lg border transition-colors ${
-                        selectedInbox?.uid === msg.uid
-                          ? 'border-gold bg-gold/10'
-                          : msg.read
-                          ? 'border-offwhite-dim/15 bg-navy-soft/30 hover:border-gold/30'
-                          : 'border-blue-400/40 bg-blue-900/10 hover:border-gold/40'
-                      }`}
-                    >
-                      <button
-                        onClick={() => openInboxMessage(msg)}
-                        className="w-full text-left px-3 py-2.5"
-                      >
-                        <p className={`text-xs font-medium truncate ${msg.read ? 'text-offwhite-dim' : 'text-offwhite font-bold'}`}>
-                          {msg.fromName || msg.from}
-                        </p>
-                        <p className={`text-xs truncate mt-0.5 ${msg.read ? 'text-offwhite-dim/60' : 'text-offwhite/80'}`}>
-                          {msg.subject}
-                        </p>
-                        <p className="text-[10px] text-offwhite-dim/40 mt-1">
-                          {new Date(msg.date).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </button>
-                      <div className="flex items-center justify-end gap-1 px-2 pb-1.5">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); void markInboxFlag([msg.uid], msg.read ? 'markUnread' : 'markRead'); }}
-                          className="text-[10px] text-offwhite-dim/50 hover:text-gold border border-offwhite-dim/15 hover:border-gold/40 px-1.5 py-0.5 rounded"
-                        >
-                          {msg.read ? '未読に戻す' : '既読にする'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {inboxMessages.filter(m => inboxFilter === 'all' || !m.read).length === 0 && (
-                    <p className="text-offwhite-dim/40 text-xs text-center py-6">該当メールなし</p>
-                  )}
-                </div>
-
-                {/* メール本文 + 返信 */}
-                <div className="md:col-span-3 bg-navy-soft/40 border border-gold/20 rounded-xl p-5 space-y-4 max-h-[70vh] overflow-y-auto">
-                  {selectedInbox ? (
-                    <>
-                      <div className="space-y-2 border-b border-gold/20 pb-3">
-                        <h3 className="text-sm font-bold text-offwhite">{selectedInbox.subject}</h3>
-                        <p className="text-xs text-offwhite-dim">
-                          差出人: <span className="text-gold">{selectedInbox.fromName}</span> &lt;{selectedInbox.from}&gt;
-                        </p>
-                        <p className="text-xs text-offwhite-dim/50">
-                          受信: {new Date(selectedInbox.date).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}
-                        </p>
-                      </div>
-
-                      {/* 本文 */}
-                      <div className="text-sm text-offwhite-dim whitespace-pre-wrap leading-relaxed bg-navy-deep/30 rounded-lg p-4 max-h-64 overflow-y-auto">
-                        {selectedInbox.bodyText || '(本文なし)'}
-                      </div>
-
-                      {/* 過去のやり取り（このアドレス宛の送信履歴） */}
-                      <div className="space-y-2 border-t border-gold/15 pt-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[10px] text-gold/60 uppercase tracking-wider">
-                            このアドレスとのやり取り（{thread.length}件）
-                          </p>
-                          {threadLoading && <span className="text-[10px] text-offwhite-dim/50">読み込み中…</span>}
-                        </div>
-                        {thread.length === 0 && !threadLoading && (
-                          <p className="text-[11px] text-offwhite-dim/40">送信履歴なし</p>
-                        )}
-                        <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                          {thread.map((t, i) => (
-                            <div key={`${t.at}-${i}`} className="bg-navy-deep/40 border border-gold/10 rounded px-2.5 py-1.5">
-                              <div className="flex items-baseline gap-2">
-                                <span className={`text-[9px] px-1 rounded ${t.kind === 'sent' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-blue-500/20 text-blue-300'}`}>
-                                  {t.kind === 'sent' ? '送信' : '受信'}
-                                </span>
-                                <span className="text-[10px] text-offwhite-dim/60">
-                                  {new Date(t.at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                                <span className="text-[11px] text-offwhite truncate flex-1">{t.subject}</span>
-                              </div>
-                              {t.bodyPreview && (
-                                <p className="text-[10px] text-offwhite-dim/50 mt-1 line-clamp-2">{t.bodyPreview}</p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* 返信フォーム */}
-                      <div className="space-y-3 border-t border-gold/15 pt-4">
-                        <p className="text-xs text-gold/70 uppercase tracking-wider">返信</p>
-                        <div className="space-y-2">
-                          <input
-                            type="email"
-                            value={reply.to}
-                            onChange={e => setReply(r => ({ ...r, to: e.target.value }))}
-                            placeholder="宛先"
-                            className="w-full bg-navy-deep/60 border border-gold/30 rounded-lg px-3 py-2 text-offwhite text-sm focus:border-gold outline-none"
-                          />
-                          <input
-                            type="text"
-                            value={reply.subject}
-                            onChange={e => setReply(r => ({ ...r, subject: e.target.value }))}
-                            placeholder="件名"
-                            className="w-full bg-navy-deep/60 border border-gold/30 rounded-lg px-3 py-2 text-offwhite text-sm focus:border-gold outline-none"
-                          />
-                          <textarea
-                            value={reply.body}
-                            onChange={e => setReply(r => ({ ...r, body: e.target.value, sent: false }))}
-                            rows={6}
-                            placeholder="返信内容を入力…"
-                            className="w-full bg-navy-deep/60 border border-gold/30 rounded-lg px-3 py-2 text-offwhite text-sm focus:border-gold outline-none resize-y leading-relaxed"
-                          />
-                        </div>
-                        {reply.error && <p className="text-red-300 text-xs">{reply.error}</p>}
-                        {reply.sent && <p className="text-emerald-300 text-xs">送信しました</p>}
-                        <button
-                          onClick={() => void sendReply()}
-                          disabled={reply.sending || !reply.body.trim()}
-                          className="px-5 py-2 bg-gold text-navy-deep font-bold rounded-lg text-sm hover:bg-gold-light disabled:opacity-40"
-                        >
-                          {reply.sending ? '送信中…' : '返信を送信'}
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-offwhite-dim/50 text-sm text-center py-12">左からメールを選択してください</p>
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
-        )}
 
         {/* ── TAB: ページ管理（マイページ全員共通レイアウト） ── */}
         {activeTab === 'pages' && (
